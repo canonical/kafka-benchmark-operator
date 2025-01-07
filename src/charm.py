@@ -44,7 +44,10 @@ from benchmark.literals import (
 )
 from benchmark.managers.config import ConfigManager
 from benchmark.managers.lifecycle import LifecycleManager
-from literals import CLIENT_RELATION_NAME, TOPIC_NAME
+from literals import CLIENT_RELATION_NAME, JAVA_VERSION, TOPIC_NAME
+
+# TODO: This file must go away once Kafka starts sharing its certificates via client relation
+from tls import JavaTlsHandler, JavaTlsStoreManager
 
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)
@@ -64,6 +67,16 @@ commonConfig: |
   {{ list_of_brokers_bootstrap }}
   sasl.mechanism=SCRAM-SHA-512
   sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="{{ username }}" password="{{ password }}";
+  {% if truststore_path and truststore_pwd -%}
+  security.protocol=SASL_SSL
+  ssl.truststore.location={{ truststore_path }}
+  ssl.truststore.password={{ truststore_pwd }}
+  {%- endif %}
+  {% if keystore_path and keystore_pwd -%}
+  ssl.keystore.location={{ keystore_path }}
+  ssl.keystore.password={{ keystore_pwd }}
+  {%- endif %}
+  ssl.client.auth={{ ssl_client_auth }}
 
 producerConfig: |
   max.in.flight.requests.per.connection={{ threads }}
@@ -114,7 +127,12 @@ class KafkaDatabaseState(DatabaseState):
     """State collection for the database relation."""
 
     def __init__(
-        self, component: Application | Unit, relation: Relation | None, data: dict[str, Any] = {}
+        self,
+        component: Application | Unit,
+        relation: Relation | None,
+        data: dict[str, Any] = {},
+        tls_relation: Relation
+        | None = None,  # TODO: remove once Kafka emits the TLS data via client relation
     ):
         super().__init__(
             component=component,
@@ -122,6 +140,16 @@ class KafkaDatabaseState(DatabaseState):
             data=data,
         )
         self.database_key = "topic"
+        # TODO: remove once Kafka emits the TLS data via client relation
+        self.tls_relation = tls_relation
+
+    @property
+    @override
+    def tls_ca(self) -> str | None:
+        """Return the TLS CA."""
+        if not super().tls_ca:
+            return None
+        self.tls_relation
 
     def get(self) -> DPBenchmarkBaseDatabaseModel | None:
         """Returns the value of the key."""
@@ -183,7 +211,7 @@ class KafkaDatabaseRelationHandler(DatabaseRelationHandler):
         return KafkaDatabaseState(
             self.charm.app,
             self.relation,
-            data=self.client.fetch_relation_data()[self.relation.id],
+            data=self.client.fetch_relation_data()[self.relation.id] | {},
         )
 
     @property
@@ -223,12 +251,14 @@ class KafkaConfigManager(ConfigManager):
         self,
         workload: WorkloadBase,
         database: KafkaDatabaseRelationHandler,
+        java_tls: JavaTlsStoreManager,
         peer: KafkaPeersRelationHandler,
         config: dict[str, Any],
         labels: Optional[str] = "",
     ):
         self.workload = workload
         self.workload.worker_params_template = KAFKA_WORKER_PARAMS_TEMPLATE
+        self.java_tls = java_tls
 
         self.config = config
         self.peer = peer
@@ -243,7 +273,7 @@ class KafkaConfigManager(ConfigManager):
     ) -> str | None:
         """Render the workload parameters."""
         values = self.get_execution_options().dict() | {
-            "charm_root": os.environ.get("CHARM_DIR", ""),
+            "charm_root": self.workload.paths.charm_dir,
             "command": transition.value,
         }
         return self._render(
@@ -265,7 +295,7 @@ class KafkaConfigManager(ConfigManager):
         ):
             return False
         values = values.dict() | {
-            "charm_root": os.environ.get("CHARM_DIR", ""),
+            "charm_root": self.workload.paths.charm_dir,
             "command": transition.value,
             "target_hosts": values.db_info.hosts,
         }
@@ -287,8 +317,10 @@ class KafkaConfigManager(ConfigManager):
 
     def get_worker_params(self) -> dict[str, Any]:
         """Return the workload parameters."""
-        db = self.database.state.get()
+        # Generate the truststore, if applicable
+        self.java_tls.set()
 
+        db = self.database.state.get()
         return {
             "total_number_of_brokers": len(self.peer.units()) + 1,
             # We cannot have quotes nor brackets in this string.
@@ -299,6 +331,9 @@ class KafkaConfigManager(ConfigManager):
             "username": db.username,
             "password": db.password,
             "threads": self.config.get("threads", 1) if self.config.get("threads") > 0 else 1,
+            "truststore_path": self.java_tls.java_paths.truststore,
+            "truststore_pwd": self.java_tls.truststore_pwd,
+            "ssl_client_auth": "none",
         }
 
     def _render_worker_params(
@@ -321,7 +356,7 @@ class KafkaConfigManager(ConfigManager):
             "duration": int(self.config.get("duration") / 60)
             if self.config.get("duration") > 0
             else TEN_YEARS_IN_MINUTES,
-            "charm_root": os.environ.get("CHARM_DIR", ""),
+            "charm_root": self.workload.paths.charm_dir,
         }
 
     @override
@@ -346,6 +381,8 @@ class KafkaConfigManager(ConfigManager):
     @override
     def prepare(self) -> bool:
         """Prepare the benchmark service."""
+        super().prepare()
+
         # First, clean if a topic already existed
         self.clean()
         try:
@@ -416,10 +453,14 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
             self,
             CLIENT_RELATION_NAME,
         )
+        self.tls_handler = JavaTlsHandler(self)
+
+        self.java_tls_manager = self.tls_handler.tls_manager
         self.peer_handler = KafkaPeersRelationHandler(self, PEER_RELATION)
         self.config_manager = KafkaConfigManager(
             workload=self.workload,
             database=self.database,
+            java_tls=self.java_tls_manager,
             peer=self.peer_handler,
             config=self.config,
             labels=self.labels,
@@ -431,7 +472,7 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
     @override
     def _on_install(self, event: EventBase) -> None:
         """Install the charm."""
-        apt.add_package("openjdk-18-jre", update_cache=True)
+        apt.add_package(f"openjdk-{JAVA_VERSION}-jre", update_cache=True)
 
     @override
     def _preflight_checks(self) -> bool:
