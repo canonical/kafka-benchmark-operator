@@ -60,6 +60,7 @@ class WorkloadCLIArgsModel(BaseModel):
     run_count: int
     report_interval: int
     extra_labels: str
+    log_file: str = "/var/log/dpe_benchmark_workload.log"
     peers: str
 
 
@@ -85,3 +86,48 @@ class BenchmarkMetrics:
             self.metrics[f"{self.options.label}_{key}"].labels(*self.options.extra_labels).set(
                 value
             )
+
+
+
+class KafkaBenchmarkSample(BaseModel):
+    """Sample from the benchmark tool."""
+
+    produce_rate: float  # in msgs / s
+    produce_throughput: float  # in MB/s
+    produce_error_rate: float  # in err/s
+
+    produce_latency_avg: float  # in (ms)
+    produce_latency_50: float
+    produce_latency_99: float
+    produce_latency_99_9: float
+    produce_latency_max: float
+
+    produce_delay_latency_avg: float  # in (us)
+    produce_delay_latency_50: float
+    produce_delay_latency_99: float
+    produce_delay_latency_99_9: float
+    produce_delay_latency_max: float
+
+    consume_rate: float  # in msgs / s
+    consume_throughput: float  # in MB/s
+    consume_backlog: float  # in KB
+
+
+class KafkaBenchmarkSampleMatcher(Enum):
+    """Hard-coded regexes to process the benchmark sample."""
+
+    produce_rate: str = r"Pub rate\s+(.*?)\s+msg/s"
+    produce_throughput: str = r"Pub rate\s+\d+.\d+\s+msg/s\s+/\s+(.*?)\s+MB/s"
+    produce_error_rate: str = r"Pub err\s+(.*?)\s+err/s"
+    produce_latency_avg: str = r"Pub Latency \(ms\) avg:\s+(.*?)\s+"
+    # Match: Pub Latency (ms) avg: 1478.1 - 50%: 1312.6 - 99%: 4981.5 - 99.9%: 5104.7 - Max: 5110.5
+    # Generates: [('1478.1', '1312.6', '4981.5', '5104.7', '5110.5')]
+    produce_latency_percentiles: str = r"Pub Latency \(ms\) avg:\s+(.*?)\s+- 50%:\s+(.*?)\s+- 99%:\s+(.*?)\s+- 99.9%:\s+(.*?)\s+- Max:\s+(.*?)\s+"
+
+    # Pub Delay Latency (us) avg: 21603452.9 - 50%: 21861759.0 - 99%: 23621631.0 - 99.9%: 24160895.0 - Max: 24163839.0
+    # Generates: [('21603452.9', '21861759.0', '23621631.0', '24160895.0', '24163839.0')]
+    produce_latency_delay_percentiles: str = r"Pub Delay Latency \(us\) avg:\s+(.*?)\s+- 50%:\s+(.*?)\s+- 99%:\s+(.*?)\s+- 99.9%:\s+(.*?)\s+- Max:\s+(\d+\.\d+)"
+
+    consume_rate: str = r"Cons rate\s+(.*?)\s+msg/s"
+    consume_throughput: str = r"Cons rate\s+\d+.\d+\s+msg/s\s+/\s+(.*?)\s+MB/s"
+    consume_backlog: str = r"Backlog:\s+(.*?)\s+K"

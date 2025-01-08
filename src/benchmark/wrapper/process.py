@@ -27,12 +27,9 @@ VALID_LOG_LEVELS = ["info", "debug", "warning", "error", "critical"]
 
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    filename="/var/log/dpe_benchmark_workload.log", encoding="utf-8", level=logging.INFO
-)
 
 
-class BenchmarkProcess(ABC):
+class BenchmarkProcess:
     """This class models one of the processes being executed in the benchmark.
 
     Overload this class and implement the `process_line` method to return either str

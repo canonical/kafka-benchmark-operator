@@ -4,6 +4,7 @@
 
 """This script runs the benchmark tool, collects its output and forwards to prometheus."""
 
+import logging
 import signal
 
 from core import WorkloadCLIArgsModel
@@ -22,6 +23,10 @@ class MainWrapper:
     def run(self):
         """Prepares the workload and runs the benchmark."""
         manager, _ = self.mapping.map(self.args.command)
+
+        logging.basicConfig(
+            filename=self.args.log_file, encoding="utf-8", level=logging.INFO
+        )
 
         def _exit(*args, **kwargs):
             manager.stop()
@@ -61,6 +66,9 @@ class MainWrapper:
 #         type=str,
 #         help="comma-separated list of extra labels to be used.",
 #         default="",
+#     )
+#     parser.add_argument(
+#         "--log_file", type=str, default="/var/log/dpe_benchmark_workload.log", help="Log file for all threads"
 #     )
 #     # Parse the arguments as dictionary, using the same logic as:
 #     # https://github.com/python/cpython/blob/ \

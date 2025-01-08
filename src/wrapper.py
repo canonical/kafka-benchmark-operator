@@ -9,7 +9,6 @@ import os
 import re
 
 from overrides import override
-from pydantic import BaseModel
 
 from benchmark.wrapper.core import (
     BenchmarkCommand,
@@ -17,53 +16,11 @@ from benchmark.wrapper.core import (
     MetricOptionsModel,
     ProcessModel,
     WorkloadCLIArgsModel,
+    KafkaBenchmarkSample,
+    KafkaBenchmarkSampleMatcher,
 )
 from benchmark.wrapper.main import MainWrapper
 from benchmark.wrapper.process import BenchmarkManager, BenchmarkProcess, WorkloadToProcessMapping
-
-
-class KafkaBenchmarkSample(BaseModel):
-    """Sample from the benchmark tool."""
-
-    produce_rate: float  # in msgs / s
-    produce_throughput: float  # in MB/s
-    produce_error_rate: float  # in err/s
-
-    produce_latency_avg: float  # in (ms)
-    produce_latency_50: float
-    produce_latency_99: float
-    produce_latency_99_9: float
-    produce_latency_max: float
-
-    produce_delay_latency_avg: float  # in (us)
-    produce_delay_latency_50: float
-    produce_delay_latency_99: float
-    produce_delay_latency_99_9: float
-    produce_delay_latency_max: float
-
-    consume_rate: float  # in msgs / s
-    consume_throughput: float  # in MB/s
-    consume_backlog: float  # in KB
-
-
-class KafkaBenchmarkSampleMatcher(BaseModel):
-    """Hard-coded regexes to process the benchmark sample."""
-
-    produce_rate: str = r"Pub rate\s+(.*?)\s+msg/s"
-    produce_throughput: str = r"Pub rate\s+\d+.\d+\s+msg/s\s+/\s+(.*?)\s+MB/s"
-    produce_error_rate: str = r"Pub err\s+(.*?)\s+err/s"
-    produce_latency_avg: str = r"Pub Latency \(ms\) avg:\s+(.*?)\s+"
-    # Match: Pub Latency (ms) avg: 1478.1 - 50%: 1312.6 - 99%: 4981.5 - 99.9%: 5104.7 - Max: 5110.5
-    # Generates: [('1478.1', '1312.6', '4981.5', '5104.7', '5110.5')]
-    produce_latency_percentiles: str = r"Pub Latency \(ms\) avg:\s+(.*?)\s+- 50%:\s+(.*?)\s+- 99%:\s+(.*?)\s+- 99.9%:\s+(.*?)\s+- Max:\s+(.*?)\s+"
-
-    # Pub Delay Latency (us) avg: 21603452.9 - 50%: 21861759.0 - 99%: 23621631.0 - 99.9%: 24160895.0 - Max: 24163839.0
-    # Generates: [('21603452.9', '21861759.0', '23621631.0', '24160895.0', '24163839.0')]
-    produce_latency_delay_percentiles: str = r"Pub Delay Latency \(us\) avg:\s+(.*?)\s+- 50%:\s+(.*?)\s+- 99%:\s+(.*?)\s+- 99.9%:\s+(.*?)\s+- Max:\s+(\d+\.\d+)"
-
-    consume_rate: str = r"Cons rate\s+(.*?)\s+msg/s"
-    consume_throughput: str = r"Cons rate\s+\d+.\d+\s+msg/s\s+/\s+(.*?)\s+MB/s"
-    consume_backlog: str = r"Backlog:\s+(.*?)\s+K"
 
 
 class KafkaMainWrapper(MainWrapper):
@@ -100,33 +57,31 @@ class KafkaBenchmarkProcess(BenchmarkProcess):
 class KafkaBenchmarkManager(BenchmarkManager):
     """This class is in charge of managing all the processes in the benchmark run."""
 
-    matcher: KafkaBenchmarkSampleMatcher = KafkaBenchmarkSampleMatcher()
-
     @override
     def process_line(self, line: str) -> BaseModel | None:
         """Process the output of the process."""
         # First, check if we have a match:
         try:
-            if not (pub_rate := re.findall(self.matcher.produce_rate, line)):
+            if not (pub_rate := re.findall(KafkaBenchmarkSampleMatcher.produce_rate.value, line)):
                 # Nothing found, we can have an early return
                 return None
 
             if not (
-                prod_percentiles := re.findall(self.matcher.produce_latency_percentiles, line)
+                prod_percentiles := re.findall(KafkaBenchmarkSampleMatcher.produce_latency_percentiles.value, line)
             ):
                 return None
 
             if not (
                 delay_percentiles := re.findall(
-                    self.matcher.produce_latency_delay_percentiles, line
+                    KafkaBenchmarkSampleMatcher.produce_latency_delay_percentiles.value, line
                 )
             ):
                 return None
 
             return KafkaBenchmarkSample(
                 produce_rate=float(pub_rate[0]),
-                produce_throughput=float(re.findall(self.matcher.produce_throughput, line)[0]),
-                produce_error_rate=float(re.findall(self.matcher.produce_error_rate, line)[0]),
+                produce_throughput=float(re.findall(KafkaBenchmarkSampleMatcher.produce_throughput.value, line)[0]),
+                produce_error_rate=float(re.findall(KafkaBenchmarkSampleMatcher.produce_error_rate.value, line)[0]),
                 produce_latency_avg=float(prod_percentiles[0][0]),
                 produce_latency_50=float(prod_percentiles[0][1]),
                 produce_latency_99=float(prod_percentiles[0][2]),
@@ -137,9 +92,9 @@ class KafkaBenchmarkManager(BenchmarkManager):
                 produce_delay_latency_99=float(delay_percentiles[0][2]),
                 produce_delay_latency_99_9=float(delay_percentiles[0][3]),
                 produce_delay_latency_max=float(delay_percentiles[0][4]),
-                consume_rate=float(re.findall(self.matcher.consume_rate, line)[0]),
-                consume_throughput=float(re.findall(self.matcher.consume_throughput, line)[0]),
-                consume_backlog=float(re.findall(self.matcher.consume_backlog, line)[0]),
+                consume_rate=float(re.findall(KafkaBenchmarkSampleMatcher.consume_rate.value, line)[0]),
+                consume_throughput=float(re.findall(KafkaBenchmarkSampleMatcher.consume_throughput.value, line)[0]),
+                consume_backlog=float(re.findall(KafkaBenchmarkSampleMatcher.consume_backlog.value, line)[0]),
             )
         except Exception:
             return None
