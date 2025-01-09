@@ -60,8 +60,9 @@ class WorkloadCLIArgsModel(BaseModel):
     run_count: int
     report_interval: int
     extra_labels: str
-    log_file: str = "/var/log/dpe_benchmark_workload.log"
     peers: str
+    log_file: str = "/var/log/dpe_benchmark_workload.log"
+    is_coordinator: bool
 
 
 class BenchmarkMetrics:
@@ -86,7 +87,6 @@ class BenchmarkMetrics:
             self.metrics[f"{self.options.label}_{key}"].labels(*self.options.extra_labels).set(
                 value
             )
-
 
 
 class KafkaBenchmarkSample(BaseModel):

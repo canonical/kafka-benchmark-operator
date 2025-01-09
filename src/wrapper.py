@@ -9,15 +9,17 @@ import os
 import re
 
 from overrides import override
+from pydantic import BaseModel
 
+from benchmark.literals import BENCHMARK_WORKLOAD_PATH
 from benchmark.wrapper.core import (
     BenchmarkCommand,
     BenchmarkMetrics,
+    KafkaBenchmarkSample,
+    KafkaBenchmarkSampleMatcher,
     MetricOptionsModel,
     ProcessModel,
     WorkloadCLIArgsModel,
-    KafkaBenchmarkSample,
-    KafkaBenchmarkSampleMatcher,
 )
 from benchmark.wrapper.main import MainWrapper
 from benchmark.wrapper.process import BenchmarkManager, BenchmarkProcess, WorkloadToProcessMapping
@@ -67,7 +69,9 @@ class KafkaBenchmarkManager(BenchmarkManager):
                 return None
 
             if not (
-                prod_percentiles := re.findall(KafkaBenchmarkSampleMatcher.produce_latency_percentiles.value, line)
+                prod_percentiles := re.findall(
+                    KafkaBenchmarkSampleMatcher.produce_latency_percentiles.value, line
+                )
             ):
                 return None
 
@@ -80,8 +84,12 @@ class KafkaBenchmarkManager(BenchmarkManager):
 
             return KafkaBenchmarkSample(
                 produce_rate=float(pub_rate[0]),
-                produce_throughput=float(re.findall(KafkaBenchmarkSampleMatcher.produce_throughput.value, line)[0]),
-                produce_error_rate=float(re.findall(KafkaBenchmarkSampleMatcher.produce_error_rate.value, line)[0]),
+                produce_throughput=float(
+                    re.findall(KafkaBenchmarkSampleMatcher.produce_throughput.value, line)[0]
+                ),
+                produce_error_rate=float(
+                    re.findall(KafkaBenchmarkSampleMatcher.produce_error_rate.value, line)[0]
+                ),
                 produce_latency_avg=float(prod_percentiles[0][0]),
                 produce_latency_50=float(prod_percentiles[0][1]),
                 produce_latency_99=float(prod_percentiles[0][2]),
@@ -92,9 +100,15 @@ class KafkaBenchmarkManager(BenchmarkManager):
                 produce_delay_latency_99=float(delay_percentiles[0][2]),
                 produce_delay_latency_99_9=float(delay_percentiles[0][3]),
                 produce_delay_latency_max=float(delay_percentiles[0][4]),
-                consume_rate=float(re.findall(KafkaBenchmarkSampleMatcher.consume_rate.value, line)[0]),
-                consume_throughput=float(re.findall(KafkaBenchmarkSampleMatcher.consume_throughput.value, line)[0]),
-                consume_backlog=float(re.findall(KafkaBenchmarkSampleMatcher.consume_backlog.value, line)[0]),
+                consume_rate=float(
+                    re.findall(KafkaBenchmarkSampleMatcher.consume_rate.value, line)[0]
+                ),
+                consume_throughput=float(
+                    re.findall(KafkaBenchmarkSampleMatcher.consume_throughput.value, line)[0]
+                ),
+                consume_backlog=float(
+                    re.findall(KafkaBenchmarkSampleMatcher.consume_backlog.value, line)[0]
+                ),
             )
         except Exception:
             return None
@@ -113,16 +127,16 @@ class KafkaWorkloadToProcessMapping(WorkloadToProcessMapping):
     """This class maps the workload model to the process."""
 
     @override
-    def _map_prepare(self) -> tuple[BenchmarkManager, list[BenchmarkProcess] | None]:
+    def _map_prepare(self) -> tuple[BenchmarkManager | None, list[BenchmarkProcess] | None]:
         """Returns the mapping for the prepare phase."""
         # Kafka has nothing to do on prepare
         return None, None
 
     @override
-    def _map_run(self) -> tuple[BenchmarkManager, list[BenchmarkProcess] | None]:
+    def _map_run(self) -> tuple[BenchmarkManager | None, list[BenchmarkProcess] | None]:
         """Returns the mapping for the run phase."""
-        driver_path = "/root/.benchmark/charmed_parameters/worker_params.yaml"
-        workload_path = "/root/.benchmark/charmed_parameters/dpe_benchmark.json"
+        driver_path = os.path.join(BENCHMARK_WORKLOAD_PATH, "worker_params.yaml")
+        workload_path = os.path.join(BENCHMARK_WORKLOAD_PATH, "dpe_benchmark.json")
         processes = [
             KafkaBenchmarkProcess(
                 model=ProcessModel(
@@ -139,14 +153,17 @@ class KafkaWorkloadToProcessMapping(WorkloadToProcessMapping):
         ]
         workers = ",".join([f"http://{peer}" for peer in self.args.peers.split(",")])
 
-        manager = KafkaBenchmarkManager(
-            model=ProcessModel(
+        manager_process = None
+        if self.args.is_coordinator:
+            manager_process = ProcessModel(
                 cmd=f"""sudo bin/benchmark --workers {workers} --drivers {driver_path} {workload_path}""",
                 cwd=os.path.join(
                     os.path.dirname(os.path.abspath(__file__)),
                     "../openmessaging-benchmark/",
                 ),
-            ),
+            )
+        manager = KafkaBenchmarkManager(
+            model=manager_process,
             args=self.args,
             metrics=self.metrics,
             unstarted_workers=processes,
@@ -154,7 +171,7 @@ class KafkaWorkloadToProcessMapping(WorkloadToProcessMapping):
         return manager, processes
 
     @override
-    def _map_clean(self) -> tuple[BenchmarkManager, list[BenchmarkProcess] | None]:
+    def _map_clean(self) -> tuple[BenchmarkManager | None, list[BenchmarkProcess] | None]:
         """Returns the mapping for the clean phase."""
         # Kafka has nothing to do on prepare
         return None, None
@@ -166,6 +183,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--test_name", type=str, help="Test name to be used")
     parser.add_argument("--command", type=str, help="Command to be executed", default="run")
+    parser.add_argument("--is_coordinator", type=bool, default=False)
     parser.add_argument(
         "--workload", type=str, help="Name of the workload to be executed", default="default"
     )

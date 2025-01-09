@@ -24,16 +24,14 @@ class MainWrapper:
         """Prepares the workload and runs the benchmark."""
         manager, _ = self.mapping.map(self.args.command)
 
-        logging.basicConfig(
-            filename=self.args.log_file, encoding="utf-8", level=logging.INFO
-        )
+        logging.basicConfig(filename=self.args.log_file, encoding="utf-8", level=logging.INFO)
 
         def _exit(*args, **kwargs):
             manager.stop()
 
         signal.signal(signal.SIGINT, _exit)
         signal.signal(signal.SIGTERM, _exit)
-        start_http_server(8088)
+        start_http_server(8008)
 
         # Start the manager and process the output
         manager.start()
@@ -62,13 +60,13 @@ class MainWrapper:
 #         "--target_hosts", type=str, default="", help="comma-separated list of target hosts"
 #     )
 #     parser.add_argument(
+#         "--log_file", type=str, default="/var/log/dpe_benchmark_workload.log", help="Log file for all threads"
+#     )
+#     parser.add_argument(
 #         "--extra_labels",
 #         type=str,
 #         help="comma-separated list of extra labels to be used.",
 #         default="",
-#     )
-#     parser.add_argument(
-#         "--log_file", type=str, default="/var/log/dpe_benchmark_workload.log", help="Log file for all threads"
 #     )
 #     # Parse the arguments as dictionary, using the same logic as:
 #     # https://github.com/python/cpython/blob/ \
