@@ -31,8 +31,8 @@ juju relate kafka kafka-benchmark
 To kick start a benchmark, execute the following actions:
 
 ```
-juju run kafka-benchmark/0 prepare  # to set the environment and the cluster
-juju run kafka-benchmark/0 run
+juju run kafka-benchmark/leader prepare  # to set the environment and the cluster
+juju run kafka-benchmark/leader run
 ```
 
 The units will pick-up the command and start executing the benchmark.
@@ -41,12 +41,12 @@ The units will pick-up the command and start executing the benchmark.
 
 To stop the benchmark, execute:
 ```
-juju run kafka-benchmark/0 stop
+juju run kafka-benchmark/leader stop
 ```
 
 Optionally, it is possible to clean the current benchmark data using:
 ```
-juju run kafka-benchmark/0 cleanup
+juju run kafka-benchmark/leader cleanup
 ```
 
 That will return all kafka-benchmark units to its original condition as well as the kafka cluster.
