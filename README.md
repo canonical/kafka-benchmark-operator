@@ -40,6 +40,7 @@ The units will pick-up the command and start executing the benchmark.
 ### Stop benchmarking
 
 To stop the benchmark, execute:
+
 ```
 juju run kafka-benchmark/leader stop
 ```
