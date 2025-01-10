@@ -54,7 +54,7 @@ That will return all kafka-benchmark units to its original condition as well as 
 
 ### COS integration
 
-Relate the kafka benchmark with a [`grafana-agent` operator](https://charmhub.io/grafana-agent). For more details on how to configure COS and its agents, check [the upstream documentation](https://charmhub.io/grafana-agent/docs/using).
+Relate the Apache Kafka benchmark with a [`grafana-agent` operator](https://charmhub.io/grafana-agent). For more details on how to deploy and configure COS and its agents, check [the upstream documentation](https://charmhub.io/grafana-agent/docs/using).
 
 Once the `grafana-agent` is deployed, relate it with:
 
