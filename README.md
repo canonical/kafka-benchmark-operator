@@ -21,7 +21,8 @@ juju deploy zookeeper --channel=3/edge
 juju relate kafka zookeeper
 ```
 
-Deploy the benchmark tool and relate:
+Deploy the benchmark tool and relate it to the cluster:
+
 ```
 juju deploy kafka-benchmark --channel=latest/edge
 juju relate kafka kafka-benchmark
