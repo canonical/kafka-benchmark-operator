@@ -6,7 +6,8 @@ The OpenMessaging allows for a distributed deployment, where the charm leader wi
 
 ## Usage
 
-Bootstrap a controller to juju and create a model:
+
+Create a new Juju model:
 
 ```
 juju add-model kafka-benchmark
