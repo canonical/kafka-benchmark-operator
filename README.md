@@ -52,7 +52,7 @@ Optionally, it is possible to clean the current benchmark data using:
 juju run kafka-benchmark/leader cleanup
 ```
 
-That will return all kafka-benchmark units to its original condition as well as the kafka cluster.
+That will return both Apache Kafka benchmark charm and Apache Kafka cluster to their original condition.
 
 ### COS integration
 
