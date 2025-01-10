@@ -1,4 +1,4 @@
-# kafka-benchmark-operator
+# Apache Kafka benchmark operator
 
 The Apache Kafka benchmark charm uses the [OpenMessaging](https://github.com/openmessaging/benchmark) tool to test both producer and consumer performance in the cluster.
 
