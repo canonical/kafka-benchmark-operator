@@ -48,6 +48,7 @@ juju run kafka-benchmark/leader stop
 ```
 
 Optionally, it is possible to clean the current benchmark data using:
+
 ```
 juju run kafka-benchmark/leader cleanup
 ```
