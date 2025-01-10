@@ -72,4 +72,4 @@ Also, if you truly enjoy working on open-source projects like this one, check ou
 
 ## License
 
-Charmed Apache Kafka is free software, distributed under the Apache Software License, version 2.0. See [LICENSE](https://github.com/canonical/kafka-benchmark-operator/blob/main/LICENSE) for more information.
+Apache Kafka benchmark operator is free software, distributed under the Apache Software License, version 2.0. See [LICENSE](https://github.com/canonical/kafka-benchmark-operator/blob/main/LICENSE) for more information.
