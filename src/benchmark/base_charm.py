@@ -124,11 +124,15 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
         self.config_manager = ConfigManager(
             workload=self.workload,
             database=self.database.state,
-            peer=self.peers,
+            peer=self.peers.peers(),
             config=self.config,
             labels=self.labels,
         )
-        self.lifecycle = LifecycleManager(self.peers, self.config_manager)
+        self.lifecycle = LifecycleManager(
+            self.peers.all_unit_states(),
+            self.peers.this_unit(),
+            self.config_manager,
+        )
 
     @abstractmethod
     def supported_workloads(self) -> list[str]:

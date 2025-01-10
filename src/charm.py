@@ -18,7 +18,7 @@ the user.
 import logging
 import os
 from functools import cached_property
-from typing import Any, Optional
+from typing import Any
 
 import charms.operator_libs_linux.v0.apt as apt
 import ops
@@ -222,18 +222,13 @@ class KafkaConfigManager(ConfigManager):
     def __init__(
         self,
         workload: WorkloadBase,
-        database: KafkaDatabaseRelationHandler,
-        peer: KafkaPeersRelationHandler,
+        database_state: DatabaseState,
+        peers: list[str],
         config: dict[str, Any],
-        labels: Optional[str] = "",
+        labels: str,
     ):
-        self.workload = workload
-        self.workload.worker_params_template = KAFKA_WORKER_PARAMS_TEMPLATE
-
-        self.config = config
-        self.peer = peer
-        self.database = database
-        self.labels = labels
+        super().__init__(workload, database_state, peers, config, labels)
+        self.worker_params_template = KAFKA_WORKER_PARAMS_TEMPLATE
 
     @override
     def _render_service(
@@ -309,7 +304,7 @@ class KafkaConfigManager(ConfigManager):
         return self._render(
             values=self.get_worker_params(),
             template_file=None,
-            template_content=self.workload.worker_params_template,
+            template_content=self.worker_params_template,
             dst_filepath=dst_path,
         )
 
@@ -424,7 +419,11 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
             config=self.config,
             labels=self.labels,
         )
-        self.lifecycle = LifecycleManager(self.peers, self.config_manager)
+        self.lifecycle = LifecycleManager(
+            self.peers.all_unit_states(),
+            self.peers.this_unit(),
+            self.config_manager,
+        )
 
         self.framework.observe(self.database.on.db_config_update, self._on_config_changed)
 

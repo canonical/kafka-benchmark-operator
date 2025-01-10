@@ -16,11 +16,10 @@ from typing import Any, Optional
 from jinja2 import DictLoader, Environment, FileSystemLoader, exceptions
 
 from benchmark.core.models import (
+    DatabaseState,
     DPBenchmarkWrapperOptionsModel,
 )
 from benchmark.core.workload_base import WorkloadBase
-from benchmark.events.db import DatabaseRelationHandler
-from benchmark.events.peer import PeerRelationHandler
 from benchmark.literals import DPBenchmarkLifecycleTransition
 
 # Log messages can be retrieved using juju debug-log
@@ -33,15 +32,15 @@ class ConfigManager:
     def __init__(
         self,
         workload: WorkloadBase,
-        database: DatabaseRelationHandler,
-        peer: PeerRelationHandler,
+        database_state: DatabaseState,
+        peers: list[str],
         config: dict[str, Any],
         labels: str,
     ):
         self.workload = workload
         self.config = config
-        self.peer = peer
-        self.database = database
+        self.peers = peers
+        self.database_state = database_state
         self.labels = labels
 
     @abstractmethod
@@ -77,7 +76,7 @@ class ConfigManager:
         Raises:
             DPBenchmarkMissingOptionsError: If the database is not ready.
         """
-        if not (db := self.database.state.get()):
+        if not (db := self.database_state.get()):
             # It means we are not yet ready. Return None
             # This check also serves to ensure we have only one valid relation at the time
             return None
@@ -92,7 +91,7 @@ class ConfigManager:
             report_interval=self.config.get("report_interval"),
             workload_profile=self.config.get("workload_profile"),
             labels=self.labels,
-            peers=",".join(self.peer.peers()),
+            peers=",".join(self.peers),
         )
 
     def is_collecting(self) -> bool:

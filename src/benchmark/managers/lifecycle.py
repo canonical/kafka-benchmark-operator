@@ -8,10 +8,11 @@ from ops.model import (
     BlockedStatus,
     MaintenanceStatus,
     StatusBase,
+    Unit,
     WaitingStatus,
 )
 
-from benchmark.events.peer import PeerRelationHandler
+from benchmark.core.models import PeerState
 from benchmark.literals import (
     DPBenchmarkLifecycleState,
     DPBenchmarkLifecycleTransition,
@@ -22,16 +23,19 @@ from benchmark.managers.config import ConfigManager
 class LifecycleManager:
     """The lifecycle manager class."""
 
-    def __init__(self, peers: PeerRelationHandler, config_manager: ConfigManager):
+    def __init__(
+        self,
+        peers: dict[Unit, PeerState],
+        this_unit: PeerState,
+        config_manager: ConfigManager,
+    ):
         self.peers = peers
+        self.this_unit = this_unit
         self.config_manager = config_manager
 
     def current(self) -> DPBenchmarkLifecycleState:
         """Return the current lifecycle state."""
-        return (
-            self.peers.unit_state(self.peers.this_unit()).lifecycle
-            or DPBenchmarkLifecycleState.UNSET
-        )
+        return self.peers[self.this_unit].lifecycle or DPBenchmarkLifecycleState.UNSET
 
     def make_transition(self, new_state: DPBenchmarkLifecycleState) -> bool:  # noqa: C901
         """Update the lifecycle state.
@@ -94,7 +98,7 @@ class LifecycleManager:
             if not self.config_manager.is_stopped() and not self.config_manager.stop():
                 return False
 
-        self.peers.unit_state(self.peers.this_unit()).lifecycle = new_state.value
+        self.peers[self.this_unit].lifecycle = new_state.value
         return True
 
     def next(  # noqa: C901
@@ -220,9 +224,9 @@ class LifecycleManager:
         return None
 
     def _peers_state(self) -> DPBenchmarkLifecycleState | None:
-        next_state = self.peers.unit_state(self.peers.this_unit()).lifecycle
-        for unit in self.peers.units():
-            neighbor = self.peers.unit_state(unit).lifecycle
+        next_state = self.peers[self.this_unit].lifecycle
+        for unit in self.peers.keys():
+            neighbor = self.peers[unit].lifecycle
             if neighbor is None:
                 continue
             elif self._compare_lifecycle_states(neighbor, next_state) > 0:

@@ -59,6 +59,17 @@ class PeerRelationHandler(Object):
             scope=Scope.UNIT,
         )
 
+    def all_unit_states(self) -> dict[Unit, PeerState]:
+        """Return the data for all the units."""
+        return {
+            unit: PeerState(
+                component=unit,
+                relation=self.relation,
+                scope=Scope.UNIT,
+            )
+            for unit in self.units() + [self.this_unit()]
+        }
+
     def app_state(self) -> PeerState:
         """Return the app data."""
         return PeerState(
