@@ -21,6 +21,8 @@ get-summary:
     output:
       description: |
         The output format of the summary. It can be either a table or a json.
+      type: string
+      enum: [table, json]
 
 cleanup:
   description: |

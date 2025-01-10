@@ -104,11 +104,7 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
 
         # Trigger an update status as we want to know if the relation is ready
         self.framework.observe(self.on[db_relation_name].relation_changed, self._on_update_status)
-
-        if workload:
-            self.workload = workload
-        else:
-            self.workload = workload_build(self.workload_params_template)
+        self.workload = workload or workload_build(self.workload_params_template)
 
         self._grafana_agent = COSAgentProvider(
             self,
