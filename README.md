@@ -13,7 +13,7 @@ Create a new Juju model:
 juju add-model kafka-benchmark
 ```
 
-Deploy the cluster:
+Deploy Apache Kafka with Juju:
 
 ```
 juju deploy kafka --channel=3/edge
