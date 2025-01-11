@@ -57,7 +57,9 @@ That will return both Apache Kafka benchmark charm and Apache Kafka cluster to t
 
 ### COS integration
 
-Relate the Apache Kafka benchmark with a [`grafana-agent` operator](https://charmhub.io/grafana-agent). For more details on how to deploy and configure COS and its agents, check [the upstream documentation](https://charmhub.io/grafana-agent/docs/using).
+Relate the Apache Kafka benchmark with a [`grafana-agent` operator](https://charmhub.io/grafana-agent).
+
+For more details on how to deploy and configure COS and its agents, check [the upstream documentation](https://canonical.com/data/docs/kafka/iaas/h-enable-monitoring).
 
 Once the `grafana-agent` is deployed, relate it with:
 
