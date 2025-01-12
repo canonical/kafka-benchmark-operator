@@ -236,32 +236,25 @@ class LifecycleManager:
     @property
     def status(self) -> StatusBase:
         """Return the status of the benchmark."""
-        if self.current() == DPBenchmarkLifecycleState.UNSET:
-            return WaitingStatus("Benchmark is unset")
-
-        if self.current() == DPBenchmarkLifecycleState.PREPARING:
-            return MaintenanceStatus("Preparing the benchmark")
-
-        if self.current() == DPBenchmarkLifecycleState.AVAILABLE:
-            return WaitingStatus("Benchmark prepared: call run to start")
-
-        if self.current() == DPBenchmarkLifecycleState.RUNNING:
-            return ActiveStatus("Benchmark is running")
-
-        if self.current() == DPBenchmarkLifecycleState.FAILED:
-            return BlockedStatus("Benchmark failed execution")
-
-        if self.current() == DPBenchmarkLifecycleState.COLLECTING:
-            return ActiveStatus("Benchmark is collecting data")
-
-        if self.current() == DPBenchmarkLifecycleState.UPLOADING:
-            return ActiveStatus("Benchmark is uploading data")
-
-        if self.current() == DPBenchmarkLifecycleState.FINISHED:
-            return ActiveStatus("Benchmark finished")
-
-        # if self.current() == DPBenchmarkLifecycleState.STOPPED:
-        return WaitingStatus("Benchmark is stopped")
+        match self.current():
+            case DPBenchmarkLifecycleState.UNSET:
+                return WaitingStatus("Benchmark is unset")
+            case DPBenchmarkLifecycleState.PREPARING:
+                return MaintenanceStatus("Preparing the benchmark")
+            case DPBenchmarkLifecycleState.AVAILABLE:
+                return WaitingStatus("Benchmark prepared: call run to start")
+            case DPBenchmarkLifecycleState.RUNNING:
+                return ActiveStatus("Benchmark is running")
+            case DPBenchmarkLifecycleState.FAILED:
+                return BlockedStatus("Benchmark failed execution")
+            case DPBenchmarkLifecycleState.COLLECTING:
+                return ActiveStatus("Benchmark is collecting data")
+            case DPBenchmarkLifecycleState.UPLOADING:
+                return ActiveStatus("Benchmark is uploading data")
+            case DPBenchmarkLifecycleState.FINISHED:
+                return ActiveStatus("Benchmark finished")
+            case _:
+                return WaitingStatus("Benchmark is stopped")
 
     def _compare_lifecycle_states(  # noqa: C901
         self, neighbor: DPBenchmarkLifecycleState, this: DPBenchmarkLifecycleState
@@ -275,23 +268,24 @@ class LifecycleManager:
             return 0
 
         def _get_value(phase: DPBenchmarkLifecycleState) -> int:  # noqa: C901
-            if phase == DPBenchmarkLifecycleState.UNSET:
-                return 0
-            if phase == DPBenchmarkLifecycleState.PREPARING:
-                return 1
-            if phase == DPBenchmarkLifecycleState.AVAILABLE:
-                return 2
-            if phase == DPBenchmarkLifecycleState.RUNNING:
-                return 3
-            if phase == DPBenchmarkLifecycleState.FAILED:
-                return 4
-            if phase == DPBenchmarkLifecycleState.COLLECTING:
-                return 5
-            if phase == DPBenchmarkLifecycleState.UPLOADING:
-                return 6
-            if phase == DPBenchmarkLifecycleState.FINISHED:
-                return 7
-            if phase == DPBenchmarkLifecycleState.STOPPED:
-                return 8
+            match phase:
+                case DPBenchmarkLifecycleState.UNSET:
+                    return 0
+                case DPBenchmarkLifecycleState.PREPARING:
+                    return 1
+                case DPBenchmarkLifecycleState.AVAILABLE:
+                    return 2
+                case DPBenchmarkLifecycleState.RUNNING:
+                    return 3
+                case DPBenchmarkLifecycleState.FAILED:
+                    return 4
+                case DPBenchmarkLifecycleState.COLLECTING:
+                    return 5
+                case DPBenchmarkLifecycleState.UPLOADING:
+                    return 6
+                case DPBenchmarkLifecycleState.FINISHED:
+                    return 7
+                case DPBenchmarkLifecycleState.STOPPED:
+                    return 8
 
         return _get_value(neighbor) - _get_value(this)
