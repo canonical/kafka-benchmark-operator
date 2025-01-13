@@ -1,5 +1,8 @@
-# Copyright 2023 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
+
+[tool.isort]
+profile = "black"
 
 [tool.poetry]
 package-mode = false
@@ -7,7 +10,7 @@ requires-poetry = ">=2.0.0"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-ops = "^2.17.0"
+ops = ">=2.17.0"
 tenacity = "^9.0.0"
 jinja2 = "^3.1.4"
 overrides = "7.7.0"
@@ -40,13 +43,19 @@ optional = true
 
 [tool.poetry.group.format.dependencies]
 ruff = "^0.6.8"
+black = "^22.3.0"
+pyright = "^1.1.300"
+
 
 [tool.poetry.group.lint]
 optional = true
 
 [tool.poetry.group.lint.dependencies]
+ruff = "^0.6.8"
 codespell = "^2.3.0"
 shellcheck-py = "^0.10.0.1"
+black = "^22.3.0"
+pyright = "^1.1.301"
 
 [tool.poetry.group.unit.dependencies]
 pytest = "^8.3.3"
@@ -127,3 +136,14 @@ max-complexity = 10
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.pyright]
+include = ["src"]
+extraPaths = ["./lib"]
+pythonVersion = "3.10"
+pythonPlatform = "All"
+typeCheckingMode = "basic"
+reportIncompatibleMethodOverride = false
+reportImportCycles = false
+reportMissingModuleSource = true
+stubPath = ""
