@@ -29,7 +29,7 @@ class LifecycleManager:
     def __init__(
         self,
         peers: dict[Unit, PeerState],
-        this_unit: PeerState,
+        this_unit: Unit,
         config_manager: ConfigManager,
     ):
         self.peers = peers
@@ -121,7 +121,7 @@ class LifecycleManager:
             neighbor = self.peers[unit].lifecycle
             if neighbor is None:
                 continue
-            elif self._compare_lifecycle_states(neighbor, next_state) > 0:
+            elif not next_state or self._compare_lifecycle_states(neighbor, next_state) > 0:
                 next_state = neighbor
         return next_state or DPBenchmarkLifecycleState.UNSET
 
@@ -292,9 +292,9 @@ class _RunningLifecycleState(_LifecycleState):
         if transition == DPBenchmarkLifecycleTransition.STOP:
             return _StoppedLifecycleState(self.manager)
 
-        if (
+        if (peer_state := self.manager._peers_state()) and (
             self.manager._compare_lifecycle_states(
-                self.manager._peers_state(),
+                peer_state,
                 DPBenchmarkLifecycleState.STOPPED,
             )
             == 0
@@ -325,9 +325,9 @@ class _AvailableLifecycleState(_LifecycleState):
         if transition == DPBenchmarkLifecycleTransition.RUN:
             return _RunningLifecycleState(self.manager)
 
-        if (
+        if (peer_state := self.manager._peers_state()) and (
             self.manager._compare_lifecycle_states(
-                self.manager._peers_state(),
+                peer_state,
                 DPBenchmarkLifecycleState.RUNNING,
             )
             == 0
@@ -368,18 +368,18 @@ class _UnsetLifecycleState(_LifecycleState):
         if transition == DPBenchmarkLifecycleTransition.PREPARE:
             return _PreparingLifecycleState(self.manager)
 
-        if (
+        if (peer_state := self.manager._peers_state()) and (
             self.manager._compare_lifecycle_states(
-                self.manager._peers_state(),
+                peer_state,
                 DPBenchmarkLifecycleState.AVAILABLE,
             )
             == 0
         ):
             return _AvailableLifecycleState(self.manager)
 
-        if (
+        if (peer_state := self.manager._peers_state()) and (
             self.manager._compare_lifecycle_states(
-                self.manager._peers_state(),
+                peer_state,
                 DPBenchmarkLifecycleState.RUNNING,
             )
             == 0

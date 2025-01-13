@@ -17,7 +17,6 @@ from pydantic import BaseModel, error_wrappers, root_validator
 
 from benchmark.literals import (
     LIFECYCLE_KEY,
-    STOP_KEY,
     DPBenchmarkLifecycleState,
     DPBenchmarkMissingOptionsError,
     Scope,
@@ -106,7 +105,6 @@ class DPBenchmarkWrapperOptionsModel(BaseModel):
     workload_name: str
     db_info: DPBenchmarkBaseDatabaseModel
     report_interval: int
-    workload_profile: str
     labels: str
     peers: str | None = None
 
@@ -191,16 +189,6 @@ class PeerState(RelationState):
         else:
             self.set({LIFECYCLE_KEY: status})
 
-    @property
-    def stop(self) -> bool:
-        """Returns the value of the stop key."""
-        return self.relation_data.get(STOP_KEY, False)
-
-    @stop.setter
-    def stop(self, switch: bool) -> bool:
-        """Toggles the stop key value."""
-        self.set({STOP_KEY: switch})
-
 
 class DatabaseState(RelationState):
     """State collection for the database relation."""
@@ -236,7 +224,7 @@ class DatabaseState(RelationState):
             return None
         return tls_ca
 
-    def get(self) -> DPBenchmarkBaseDatabaseModel | None:
+    def model(self) -> DPBenchmarkBaseDatabaseModel | None:
         """Returns the value of the key."""
         if not self.relation or not (endpoints := self.remote_data.get("endpoints")):
             return None
@@ -248,9 +236,9 @@ class DatabaseState(RelationState):
             return DPBenchmarkBaseDatabaseModel(
                 hosts=endpoints.split(),
                 unix_socket=unix_socket,
-                username=self.data.get("username"),
-                password=self.data.get("password"),
-                db_name=self.remote_data.get(self.database_key),
+                username=self.data.get("username", ""),
+                password=self.data.get("password", ""),
+                db_name=self.remote_data.get(self.database_key, ""),
                 tls=self.tls,
                 tls_ca=self.tls_ca,
             )

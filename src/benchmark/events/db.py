@@ -9,11 +9,13 @@ as changes in the configuration.
 """
 
 import logging
+from abc import abstractmethod
 
 from charms.data_platform_libs.v0.data_interfaces import DatabaseRequires
 from ops.charm import CharmBase, CharmEvents
 from ops.framework import EventBase, EventSource
 
+from benchmark.core.models import DatabaseState
 from benchmark.events.handler import RelationHandler
 from benchmark.literals import DPBenchmarkMissingOptionsError
 
@@ -96,10 +98,10 @@ class DatabaseRelationHandler(RelationHandler):
     #         return None
     #     return self.charm.framework.model.get_secret(id=secret_id).get_content()
 
-    def _on_endpoints_changed(self, event: EventBase) -> None:
+    def _on_endpoints_changed(self, _: EventBase) -> None:
         """Handles the endpoints_changed event."""
         try:
-            if self.state.get():
+            if self.state.model():
                 self.on.db_config_update.emit()
         except DPBenchmarkMissingOptionsError as e:
             logger.warning(f"Missing options: {e}")
@@ -108,4 +110,10 @@ class DatabaseRelationHandler(RelationHandler):
     @property
     def client(self) -> DatabaseRequires:
         """Returns the data_interfaces client corresponding to the database."""
+        ...
+
+    @property
+    @abstractmethod
+    def state(self) -> DatabaseState:
+        """Returns the state of the database."""
         ...
