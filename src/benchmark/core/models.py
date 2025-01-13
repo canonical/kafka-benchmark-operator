@@ -169,8 +169,11 @@ class PeerState(RelationState):
     """State collection for the database relation."""
 
     @override
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str | None = None, default: Any = None) -> Any:
         """Returns the value of the key."""
+        if not key:
+            return self.relation_data
+
         return self.relation_data.get(
             key,
             default,
@@ -190,6 +193,16 @@ class PeerState(RelationState):
             self.set({LIFECYCLE_KEY: status.value})
         else:
             self.set({LIFECYCLE_KEY: status})
+
+    @property
+    def test_name(self) -> str | None:
+        """Return the test name."""
+        return self.relation_data.get("test_name")
+
+    @test_name.setter
+    def test_name(self, name: str | None) -> None:
+        """Sets the test name."""
+        self.set({"test_name": name})
 
     @property
     def stop(self) -> bool:

@@ -18,7 +18,7 @@ the user.
 import logging
 import os
 from functools import cached_property
-from typing import Any
+from typing import Any, Optional
 
 import charms.operator_libs_linux.v0.apt as apt
 import ops
@@ -40,11 +40,16 @@ from benchmark.events.db import DatabaseRelationHandler
 from benchmark.events.peer import PeerRelationHandler
 from benchmark.literals import (
     PEER_RELATION,
+    DPBenchmarkLifecycleState,
     DPBenchmarkLifecycleTransition,
 )
 from benchmark.managers.config import ConfigManager
 from benchmark.managers.lifecycle import LifecycleManager
-from literals import CLIENT_RELATION_NAME, TOPIC_NAME
+from literals import CLIENT_RELATION_NAME, JAVA_VERSION, TOPIC_NAME
+from models import WorkloadTypeParameters
+
+# TODO: This file must go away once Kafka starts sharing its certificates via client relation
+from tls import JavaTlsHandler, JavaTlsStoreManager
 
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)
@@ -64,6 +69,16 @@ commonConfig: |
   {{ list_of_brokers_bootstrap }}
   sasl.mechanism=SCRAM-SHA-512
   sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="{{ username }}" password="{{ password }}";
+  {% if truststore_path and truststore_pwd -%}
+  security.protocol=SASL_SSL
+  ssl.truststore.location={{ truststore_path }}
+  ssl.truststore.password={{ truststore_pwd }}
+  {%- endif %}
+  {% if keystore_path and keystore_pwd -%}
+  ssl.keystore.location={{ keystore_path }}
+  ssl.keystore.password={{ keystore_pwd }}
+  {%- endif %}
+  ssl.client.auth={{ ssl_client_auth }}
 
 producerConfig: |
   max.in.flight.requests.per.connection={{ threads }}
@@ -82,12 +97,12 @@ KAFKA_WORKLOAD_PARAMS_TEMPLATE = """name: {{ partitionsPerTopic }} producer / {{
 
 topics: 1
 partitionsPerTopic: {{ partitionsPerTopic }}
-messageSize: 1024
+messageSize: {{ messageSize }}
 payloadFile: "{{ charm_root }}/openmessaging-benchmark/payload/payload-1Kb.data"
 subscriptionsPerTopic: {{ partitionsPerTopic }}
 consumerPerSubscription: 1
 producersPerTopic: {{ partitionsPerTopic }}
-producerRate: 50000
+producerRate: {{ producerRate }}
 consumerBacklogSizeGB: 0
 testDurationMinutes: {{ duration }}
 """
@@ -100,8 +115,9 @@ Requires=network.target
 [Service]
 EnvironmentFile=-/etc/environment
 Environment=PYTHONPATH={{ charm_root }}/lib:{{ charm_root }}/venv:{{ charm_root }}/src/benchmark/wrapper
-ExecStart={{ charm_root }}/src/wrapper.py --test_name={{ test_name }} --command={{ command }} --workload={{ workload_name }} --threads={{ threads }} --parallel_processes={{ parallel_processes }} --duration={{ duration }} --peers={{ peers }} --extra_labels={{ labels }} {{ extra_config }}
+ExecStart={{ charm_root }}/src/wrapper.py --test_name={{ test_name }} --command={{ command }} --is_coordinator={{ is_coordinator }} --workload={{ workload_name }} --threads={{ threads }} --parallel_processes={{ parallel_processes }} --duration={{ duration }} --peers={{ peers }} --extra_labels={{ labels }} {{ extra_config }}
 Restart=no
+KillSignal=SIGKILL
 TimeoutSec=600
 Type=simple
 """
@@ -114,7 +130,11 @@ class KafkaDatabaseState(DatabaseState):
     """State collection for the database relation."""
 
     def __init__(
-        self, component: Application | Unit, relation: Relation | None, data: dict[str, Any] = {}
+        self,
+        component: Application | Unit,
+        relation: Relation | None,
+        data: dict[str, Any] = {},
+        tls_relation: Relation | None = None,  # TODO: remove once Kafka emits the TLS data via client relation
     ):
         super().__init__(
             component=component,
@@ -122,6 +142,16 @@ class KafkaDatabaseState(DatabaseState):
             data=data,
         )
         self.database_key = "topic"
+        # TODO: remove once Kafka emits the TLS data via client relation
+        self.tls_relation = tls_relation
+
+    @property
+    @override
+    def tls_ca(self) -> str | None:
+        """Return the TLS CA."""
+        if not super().tls_ca:
+            return None
+        self.tls_relation
 
     def get(self) -> DPBenchmarkBaseDatabaseModel | None:
         """Returns the value of the key."""
@@ -183,7 +213,7 @@ class KafkaDatabaseRelationHandler(DatabaseRelationHandler):
         return KafkaDatabaseState(
             self.charm.app,
             self.relation,
-            data=self.client.fetch_relation_data()[self.relation.id],
+            data=self.client.fetch_relation_data()[self.relation.id] | {},
         )
 
     @property
@@ -192,7 +222,7 @@ class KafkaDatabaseRelationHandler(DatabaseRelationHandler):
         """Returns the data_interfaces client corresponding to the database."""
         return self._internal_client
 
-    def bootstrap_servers(self) -> str | None:
+    def bootstrap_servers(self) -> list[str] | None:
         """Return the bootstrap servers."""
         return self.state.get().hosts
 
@@ -223,12 +253,28 @@ class KafkaConfigManager(ConfigManager):
         self,
         workload: WorkloadBase,
         database_state: DatabaseState,
+        java_tls: JavaTlsStoreManager,
         peers: list[str],
         config: dict[str, Any],
-        labels: str,
+        is_leader: bool,
+        test_name: Optional[str] = None,
+        labels: Optional[str] = "",
     ):
-        super().__init__(workload, database_state, peers, config, labels)
+        super().__init__(workload, database_state, peers, config, labels, test_name)
         self.worker_params_template = KAFKA_WORKER_PARAMS_TEMPLATE
+        self.java_tls = java_tls
+        self.is_leader = is_leader
+
+
+    def _service_args(
+        self, args: dict[str, Any], transition: DPBenchmarkLifecycleTransition
+    ) -> dict[str, Any]:
+        return args | {
+            "charm_root": self.workload.paths.charm_dir,
+            "command": transition.value,
+            "is_coordinator": "" if not self.is_leader else "True",
+        }
+
 
     @override
     def _render_service(
@@ -237,10 +283,7 @@ class KafkaConfigManager(ConfigManager):
         dst_path: str | None = None,
     ) -> str | None:
         """Render the workload parameters."""
-        values = self.get_execution_options().dict() | {
-            "charm_root": os.environ.get("CHARM_DIR", ""),
-            "command": transition.value,
-        }
+        values = self._service_args(self.get_execution_options().dict(), transition)
         return self._render(
             values=values,
             template_file=None,
@@ -259,11 +302,7 @@ class KafkaConfigManager(ConfigManager):
             and (values := self.get_execution_options())
         ):
             return False
-        values = values.dict() | {
-            "charm_root": os.environ.get("CHARM_DIR", ""),
-            "command": transition.value,
-            "target_hosts": values.db_info.hosts,
-        }
+        values = self._service_args(values.dict(), transition)
         compare_svc = "\n".join(self.workload.read(self.workload.paths.service)) == self._render(
             values=values,
             template_file=None,
@@ -282,10 +321,12 @@ class KafkaConfigManager(ConfigManager):
 
     def get_worker_params(self) -> dict[str, Any]:
         """Return the workload parameters."""
-        db = self.database.state.get()
+        # Generate the truststore, if applicable
+        self.java_tls.set()
 
+        db = self.database.state.get()
         return {
-            "total_number_of_brokers": len(self.peer.units()) + 1,
+            "total_number_of_brokers": len(self.database.bootstrap_servers()) - 1,
             # We cannot have quotes nor brackets in this string.
             # Therefore, we render the entire line instead
             "list_of_brokers_bootstrap": "bootstrap.servers={}".format(
@@ -294,6 +335,9 @@ class KafkaConfigManager(ConfigManager):
             "username": db.username,
             "password": db.password,
             "threads": self.config.get("threads", 1) if self.config.get("threads") > 0 else 1,
+            "truststore_path": self.java_tls.java_paths.truststore,
+            "truststore_pwd": self.java_tls.truststore_pwd,
+            "ssl_client_auth": "none",
         }
 
     def _render_worker_params(
@@ -311,12 +355,15 @@ class KafkaConfigManager(ConfigManager):
     @override
     def get_workload_params(self) -> dict[str, Any]:
         """Return the worker parameters."""
+        workload = WorkloadTypeParameters[self.config.get("workload_profile")]
         return {
             "partitionsPerTopic": self.config.get("parallel_processes"),
             "duration": int(self.config.get("duration") / 60)
             if self.config.get("duration") > 0
             else TEN_YEARS_IN_MINUTES,
-            "charm_root": os.environ.get("CHARM_DIR", ""),
+            "charm_root": self.workload.paths.charm_dir,
+            "producerRate": workload.producer_rate,
+            "messageSize": workload.message_size,
         }
 
     @override
@@ -341,12 +388,14 @@ class KafkaConfigManager(ConfigManager):
     @override
     def prepare(self) -> bool:
         """Prepare the benchmark service."""
+        super().prepare()
+
         # First, clean if a topic already existed
         self.clean()
         try:
             topic = NewTopic(
                 name=self.database.state.get().db_name,
-                num_partitions=self.config.get("threads") * self.config.get("parallel_processes"),
+                num_partitions=self.config.get("parallel_processes"),
                 replication_factor=self.client.replication_factor,
             )
             self.client.create_topic(topic)
@@ -370,6 +419,9 @@ class KafkaConfigManager(ConfigManager):
         """Clean the benchmark service."""
         try:
             self.client.delete_topics([self.database.state.get().db_name])
+            self.workload.remove(self.workload.paths.service)
+            self.workload.reload()
+
         except Exception as e:
             logger.info(f"Error deleting topic: {e}")
         return self.is_cleaned()
@@ -386,16 +438,60 @@ class KafkaConfigManager(ConfigManager):
     @cached_property
     def client(self) -> KafkaClient:
         """Return the Kafka client."""
+        has_tls_ca = False
+        if os.path.exists(self.java_tls.java_paths.ca):
+            has_tls_ca = True
+
         state = self.database.state.get()
         return KafkaClient(
             servers=self.database.bootstrap_servers(),
             username=state.username,
             password=state.password,
-            security_protocol="SASL_SSL" if (state.tls or state.tls_ca) else "SASL_PLAINTEXT",
-            cafile_path=state.tls_ca,
-            certfile_path=state.tls,
-            replication_factor=len(self.peer.units()) + 1,
+            security_protocol="SASL_SSL" if has_tls_ca else "SASL_PLAINTEXT",
+            cafile_path=self.java_tls.java_paths.ca,
+            certfile_path=None,
+            replication_factor=len(self.database.bootstrap_servers()) - 1,
         )
+
+
+class KafkaLifecycleManager(LifecycleManager):
+    """The lifecycle manager class.
+
+    There is one extra case we must consider: before moving to running, we need to ensure
+    all the peers are in the same state are already running.
+    """
+
+    def __init__(
+        self,
+        peers: PeerRelationHandler,
+        config_manager: ConfigManager,
+        is_leader: bool = False,
+    ):
+        super().__init__(peers, config_manager)
+        self.is_leader = is_leader
+
+    @override
+    def _peers_state(self) -> DPBenchmarkLifecycleState | None:
+        next_state = super()._peers_state()
+
+        # Now, there is a special rule: if we are the leader unit, we can only move to RUNNING
+        # if all the peers are already running or if peer count is zero
+        if not self.is_leader:
+            return next_state
+
+        # Check the special case for running && leader
+        if next_state == DPBenchmarkLifecycleState.RUNNING:
+            if len(self.peers.units()) == 0:
+                return DPBenchmarkLifecycleState.RUNNING
+            # Now, as we are not the only unit and we are the leader, we must ensure everyone
+            # is in RUNNING state before moving forward:
+            if self.check_all_peers_in_state(DPBenchmarkLifecycleState.RUNNING):
+                return DPBenchmarkLifecycleState.RUNNING
+
+            # None of the conditions met, we return an empty state
+            return None
+
+        return next_state
 
 
 class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
@@ -412,13 +508,23 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
             CLIENT_RELATION_NAME,
         )
         self.peer_handler = KafkaPeersRelationHandler(self, PEER_RELATION)
+        self.tls_handler = JavaTlsHandler(self)
+
         self.config_manager = KafkaConfigManager(
             workload=self.workload,
-            database=self.database,
-            peer=self.peer_handler,
+            database=self.database.state,
+            java_tls=self.java_tls_manager,
+            peer=self.peers.peers(),
             config=self.config,
+            is_leader=self.unit.is_leader(),
             labels=self.labels,
+            test_name=self.peers.test_name,
         )
+
+        self.lifecycle = KafkaLifecycleManager(
+            self.peers, self.config_manager, self.unit.is_leader()
+        )
+
         self.lifecycle = LifecycleManager(
             self.peers.all_unit_states(),
             self.peers.this_unit(),
@@ -430,7 +536,7 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
     @override
     def _on_install(self, event: EventBase) -> None:
         """Install the charm."""
-        apt.add_package("openjdk-18-jre", update_cache=True)
+        apt.add_package(f"openjdk-{JAVA_VERSION}-jre", update_cache=True)
 
     @override
     def _preflight_checks(self) -> bool:
@@ -438,13 +544,25 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
 
         In kafka case, we need the client relation to be able to connect to the database.
         """
-        if self.config.get("parallel_processes") < 2:
+        if self.config.get("parallel_processes") * (len(self.peers.units()) + 1) < 2:
             logger.error("The number of parallel processes must be greater than 1.")
             self.unit.status = BlockedStatus(
-                "The number of parallel processes must be greater than 1."
+                "The number of parallel processes or peers must be greater than 1."
             )
             return False
         return super()._preflight_checks()
+
+    @override
+    def on_run_action(self, event: EventBase) -> None:
+        """Process the run action.
+
+        This method avoids execution of RUN if this unit is a leader. Only non-leaders can
+        kickstart the RUN logic as we need all non-leaders to be RUNNING before leader can start.
+        """
+        if self.unit.is_leader():
+            event.fail("Only non-leaders can start the benchmark")
+            return
+        super().on_run_action(event)
 
     @override
     def _on_config_changed(self, event):
@@ -457,7 +575,7 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
     @override
     def supported_workloads(self) -> list[str]:
         """List of supported workloads."""
-        return ["default"]
+        return list(WorkloadTypeParameters.keys())
 
 
 if __name__ == "__main__":

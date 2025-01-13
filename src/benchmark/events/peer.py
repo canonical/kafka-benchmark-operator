@@ -6,10 +6,14 @@
 from abc import abstractmethod
 
 from ops.framework import Object
-from ops.model import Unit
+from ops.model import Unit, WaitingStatus
 
 from benchmark.core.models import PeerState
-from benchmark.literals import Scope
+from benchmark.literals import (
+    DPBenchmarkLifecycleState,
+    DPBenchmarkLifecycleTransition,
+    Scope,
+)
 
 
 class PeerRelationHandler(Object):
@@ -29,9 +33,14 @@ class PeerRelationHandler(Object):
             self.charm.on[self.relation_name].relation_changed,
             self._on_peer_changed,
         )
+
+        self.framework.observe(
+            self.charm.on[self.relation_name].relation_joined,
+            self._on_new_peer_unit,
+        )
         self.framework.observe(
             self.charm.on[self.relation_name].relation_departed,
-            self._on_peer_changed,
+            self._on_new_peer_unit,
         )
 
     @abstractmethod
@@ -41,7 +50,23 @@ class PeerRelationHandler(Object):
 
     def _on_peer_changed(self, _):
         """Handle the relation-changed event."""
-        self.charm.lifecycle_update()
+        if (
+            next_state := self.charm.lifecycle.next(None)
+        ) and self.charm.lifecycle.current() != next_state:
+            self.charm.lifecycle.make_transition(next_state)
+
+    def _on_new_peer_unit(self, _):
+        """Handle the relation-joined and relation-departed events."""
+        # We have a new unit coming in. We need to stop the benchmark if running.
+        if self.charm.lifecycle.current() not in [
+            DPBenchmarkLifecycleState.UNSET,
+            DPBenchmarkLifecycleState.PREPARING,
+            DPBenchmarkLifecycleState.AVAILABLE,
+        ]:
+            if not (state := self.charm.lifecycle.next(DPBenchmarkLifecycleTransition.STOP)):
+                return
+            self.charm.lifecycle.make_transition(state)
+            self.unit.status = WaitingStatus("Stopping the benchmark: peer unit count changed.")
 
     def units(self) -> list[Unit]:
         """Return the peer units."""
@@ -59,17 +84,6 @@ class PeerRelationHandler(Object):
             scope=Scope.UNIT,
         )
 
-    def all_unit_states(self) -> dict[Unit, PeerState]:
-        """Return the data for all the units."""
-        return {
-            unit: PeerState(
-                component=unit,
-                relation=self.relation,
-                scope=Scope.UNIT,
-            )
-            for unit in self.units() + [self.this_unit()]
-        }
-
     def app_state(self) -> PeerState:
         """Return the app data."""
         return PeerState(
@@ -77,3 +91,25 @@ class PeerRelationHandler(Object):
             relation=self.relation,
             scope=Scope.APP,
         )
+
+    @property
+    def test_name(self) -> str | None:
+        """Return the app data."""
+        if not self.relation:
+            return None
+
+        return PeerState(
+            component=self.relation.app,
+            relation=self.relation,
+            scope=Scope.APP,
+        ).test_name
+
+    @test_name.setter
+    def test_name(self, name=str | None) -> None:
+        """Return the app data."""
+        state = PeerState(
+            component=self.relation.app,
+            relation=self.relation,
+            scope=Scope.APP,
+        )
+        state.test_name = name
