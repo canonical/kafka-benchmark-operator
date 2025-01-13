@@ -4,7 +4,6 @@
 """Structured configuration for the Kafka charm."""
 
 import logging
-from abc import abstractmethod
 
 from charms.data_platform_libs.v0.data_models import BaseConfigModel
 from pydantic import Field, validator
@@ -31,10 +30,3 @@ class BenchmarkCharmConfig(BaseConfigModel):
         if value == "":
             return None
         return value
-
-    @abstractmethod
-    @validator("workload_name")
-    @classmethod
-    def profile_values(cls, value: str) -> str:
-        """Check profile config option is valid."""
-        ...

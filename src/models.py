@@ -24,7 +24,6 @@ WorkloadTypeParameters = {
 class KafkaBenchmarkCharmConfig(BenchmarkCharmConfig):
     """Manager for the structured configuration."""
 
-    @override
     @validator("workload_name")
     @classmethod
     def profile_values(cls, value: str) -> str:
