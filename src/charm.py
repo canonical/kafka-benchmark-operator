@@ -36,6 +36,7 @@ from benchmark.core.models import (
 )
 from benchmark.core.structured_config import BenchmarkCharmConfig
 from benchmark.core.workload_base import WorkloadBase
+from benchmark.events.actions import ActionsHandler
 from benchmark.events.db import DatabaseRelationHandler
 from benchmark.events.peer import PeerRelationHandler
 from benchmark.literals import (
@@ -419,6 +420,29 @@ class KafkaConfigManager(ConfigManager):
         )
 
 
+class KafkaBenchmarkActionsHandler(ActionsHandler):
+    """Handle the actions for the benchmark charm."""
+
+    def __init__(self, charm: DPBenchmarkCharmBase):
+        """Initialize the class."""
+        super().__init__(charm)
+        self.config: BenchmarkCharmConfig = charm.config
+
+    @override
+    def _preflight_checks(self) -> bool:
+        """Check if we have the necessary relations.
+
+        In kafka case, we need the client relation to be able to connect to the database.
+        """
+        if int(self.config.parallel_processes) < 2:
+            logger.error("The number of parallel processes must be greater than 1.")
+            self.unit.status = BlockedStatus(
+                "The number of parallel processes must be greater than 1."
+            )
+            return False
+        return self._preflight_checks()
+
+
 class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
     """Charm the service."""
 
@@ -447,32 +471,19 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
             self.peers.this_unit(),
             self.config_manager,
         )
+        self.actions = KafkaBenchmarkActionsHandler(self)
 
         self.framework.observe(self.database.on.db_config_update, self._on_config_changed)
 
     @override
-    def _on_install(self, event: EventBase) -> None:
+    def _on_install(self, _: EventBase) -> None:
         """Install the charm."""
         apt.add_package("openjdk-18-jre", update_cache=True)
 
     @override
-    def _preflight_checks(self) -> bool:
-        """Check if we have the necessary relations.
-
-        In kafka case, we need the client relation to be able to connect to the database.
-        """
-        if int(self.config.parallel_processes) < 2:
-            logger.error("The number of parallel processes must be greater than 1.")
-            self.unit.status = BlockedStatus(
-                "The number of parallel processes must be greater than 1."
-            )
-            return False
-        return super()._preflight_checks()
-
-    @override
     def _on_config_changed(self, event):
         """Handle the config changed event."""
-        if not self._preflight_checks():
+        if not self.actions._preflight_checks():
             event.defer()
             return
         return super()._on_config_changed(event)
