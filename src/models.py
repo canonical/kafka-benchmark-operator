@@ -4,7 +4,6 @@
 """Structured configuration for the Kafka charm."""
 
 from pydantic import BaseModel, validator
-from typing_extensions import override
 
 from benchmark.core.structured_config import BenchmarkCharmConfig
 
