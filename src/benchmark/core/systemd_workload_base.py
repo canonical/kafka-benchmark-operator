@@ -19,7 +19,7 @@ from charms.operator_libs_linux.v1.systemd import (
     service_running,
     service_stop,
 )
-from overrides import override
+from typing_extensions import override
 
 from benchmark.core.workload_base import (
     WorkloadBase,
@@ -36,7 +36,7 @@ class DPBenchmarkSystemdTemplatePaths(WorkloadTemplatePaths):
 
     @property
     @override
-    def service(self) -> str | None:
+    def service(self) -> str:
         """The optional path to the service file managing the script."""
         return f"/etc/systemd/system/{self.svc_name}.service"
 
@@ -47,6 +47,15 @@ class DPBenchmarkSystemdTemplatePaths(WorkloadTemplatePaths):
         return "dpe_benchmark.service.j2"
 
     @property
+    @override
+    def workload_params(self) -> str:
+        """The path to the workload parameters folder."""
+        if not self.exists("/root/.benchmark/charmed_parameters"):
+            os.makedirs("/root/.benchmark/charmed_parameters", exist_ok=True)
+        return "/root/.benchmark/charmed_parameters/" + self.svc_name + ".json"
+
+    @property
+    @override
     def results(self) -> str:
         """The path to the results folder."""
         return os.path.join(BENCHMARK_WORKLOAD_PATH, "results")
@@ -97,7 +106,7 @@ class DPBenchmarkSystemdWorkloadBase(WorkloadBase):
     @override
     def reload(self) -> bool:
         """Reloads the script."""
-        daemon_reload()
+        return daemon_reload()
 
     def enable(self) -> bool:
         """Enables service."""
@@ -149,7 +158,7 @@ class DPBenchmarkSystemdWorkloadBase(WorkloadBase):
             )
         except subprocess.CalledProcessError:
             return None
-        return output or ""
+        return output.stdout.decode() if output.stdout else None
 
     @override
     def is_active(self) -> bool:

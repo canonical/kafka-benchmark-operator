@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Java Workload Path details."""
@@ -6,8 +6,9 @@
 import logging
 import os
 
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
+from benchmark.core.structured_config import BenchmarkCharmConfig
 from benchmark.core.workload_base import WorkloadTemplatePaths
 from benchmark.literals import BENCHMARK_WORKLOAD_PATH
 from literals import JAVA_VERSION
@@ -65,3 +66,16 @@ class JavaWorkloadPaths:
     def keystore(self) -> str:
         """Return the keystore path."""
         return os.path.join(BENCHMARK_WORKLOAD_PATH, "keystore.jks")
+
+
+class KafkaBenchmarkCharmConfig(BenchmarkCharmConfig):
+    """Manager for the structured configuration."""
+
+    @validator("workload_name")
+    @classmethod
+    def profile_values(cls, value: str) -> str:
+        """Check profile config option is valid."""
+        if value not in WorkloadTypeParameters.keys():
+            raise ValueError(f"Value not one of {str(WorkloadTypeParameters.keys())}")
+
+        return value

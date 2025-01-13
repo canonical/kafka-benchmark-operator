@@ -21,6 +21,7 @@ class TestLifecycleManager(LifecycleManager):
     ):
         super().__init__(peers, this_unit, config_manager)
         self.config_manager.workload.is_failed = MagicMock(return_value=False)
+        self.config_manager.is_failed = MagicMock(return_value=False)
 
 
 class MockPeerState:
@@ -46,9 +47,13 @@ def test_next_state_clean():
 
 def test_next_state_stop():
     lifecycle = lifecycle_factory(DPBenchmarkLifecycleState.STOPPED)
-    assert lifecycle.next(DPBenchmarkLifecycleTransition.STOP) == DPBenchmarkLifecycleState.STOPPED
+    lifecycle.config_manager.is_running = MagicMock(return_value=False)
     # Check the other condition
-    assert lifecycle.next(None) == DPBenchmarkLifecycleState.STOPPED
+    assert lifecycle.next(None) is None
+
+    # Test now with the workload recovered
+    lifecycle.config_manager.is_running = MagicMock(return_value=True)
+    assert lifecycle.next(None) == DPBenchmarkLifecycleState.RUNNING
 
 
 def test_next_state_prepare():
@@ -68,7 +73,6 @@ def test_next_state_prepare_but_peer_already_prepared():
 def test_next_state_prepare_available_as_leader():
     lifecycle = lifecycle_factory(DPBenchmarkLifecycleState.UNSET)
     lifecycle.current = MagicMock(return_value=DPBenchmarkLifecycleState.PREPARING)
-
     assert lifecycle.next(None) == DPBenchmarkLifecycleState.AVAILABLE
 
 

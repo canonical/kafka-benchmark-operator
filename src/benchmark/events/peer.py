@@ -105,7 +105,7 @@ class PeerRelationHandler(Object):
         ).test_name
 
     @test_name.setter
-    def test_name(self, name=str | None) -> None:
+    def test_name(self, name: str | None) -> None:
         """Return the app data."""
         state = PeerState(
             component=self.relation.app,

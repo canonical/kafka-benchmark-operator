@@ -12,13 +12,14 @@ import os
 from abc import abstractmethod
 from typing import Any, Optional
 
-import pydantic
 from jinja2 import DictLoader, Environment, FileSystemLoader, exceptions
+from pydantic import ValidationError
 
 from benchmark.core.models import (
-    DPBenchmarkWrapperOptionsModel,
     DatabaseState,
+    DPBenchmarkWrapperOptionsModel,
 )
+from benchmark.core.structured_config import BenchmarkCharmConfig
 from benchmark.core.workload_base import WorkloadBase
 from benchmark.literals import DPBenchmarkLifecycleTransition
 
@@ -34,9 +35,9 @@ class ConfigManager:
         workload: WorkloadBase,
         database_state: DatabaseState,
         peers: list[str],
-        config: dict[str, Any],
+        config: BenchmarkCharmConfig,
         labels: str,
-        test_name: Optional[str] = None,
+        test_name: str,
     ):
         self.workload = workload
         self.config = config
@@ -44,7 +45,6 @@ class ConfigManager:
         self.database_state = database_state
         self.labels = labels
         self.test_name = test_name
-
 
     @abstractmethod
     def get_workload_params(self) -> dict[str, Any]:
@@ -75,25 +75,24 @@ class ConfigManager:
         Raises:
             DPBenchmarkMissingOptionsError: If the database is not ready.
         """
-        if not (db := self.database_state.get()):
+        if not (db := self.database_state.model()):
             # It means we are not yet ready. Return None
             # This check also serves to ensure we have only one valid relation at the time
             return None
         try:
             return DPBenchmarkWrapperOptionsModel(
                 test_name=self.test_name,
-                parallel_processes=self.config.get("parallel_processes"),
-                threads=self.config.get("threads"),
-                duration=self.config.get("duration"),
-                run_count=self.config.get("run_count"),
+                parallel_processes=self.config.parallel_processes,
+                threads=self.config.threads,
+                duration=self.config.duration,
+                run_count=self.config.run_count,
                 db_info=db,
-                workload_name=self.config.get("workload_name"),
-                report_interval=self.config.get("report_interval"),
-                workload_profile=self.config.get("workload_profile"),
+                workload_name=self.config.workload_name,
+                report_interval=self.config.report_interval,
                 labels=self.labels,
                 peers=",".join(self.peers),
             )
-        except pydantic.error_wrappers.ValidationError:
+        except ValidationError:
             # Missing options
             return None
 
@@ -177,7 +176,7 @@ class ConfigManager:
 
     def _render_params(
         self,
-        dst_path: str | None = None,
+        dst_path: str,
     ) -> str | None:
         """Render the workload parameters."""
         return self._render(
@@ -193,8 +192,10 @@ class ConfigManager:
         dst_path: str | None = None,
     ) -> str | None:
         """Render the workload parameters."""
-        values = self.get_execution_options().dict() | {
-            "charm_root": self.workload.paths.charm_dir,
+        if not (options := self.get_execution_options()):
+            return None
+        values = options.dict() | {
+            "charm_root": os.environ.get("CHARM_DIR", ""),
             "command": transition.value,
         }
         return self._render(
@@ -219,7 +220,9 @@ class ConfigManager:
             "command": transition.value,
             "target_hosts": values.db_info.hosts,
         }
-        compare_svc = "\n".join(self.workload.read(self.workload.paths.service)) == self._render(
+        compare_svc = "\n".join(
+            self.workload.read(self.workload.paths.service) or ""
+        ) == self._render(
             values=values,
             template_file=self.workload.paths.service_template,
             template_content=None,
@@ -242,7 +245,7 @@ class ConfigManager:
         template_file: str | None,
         template_content: str | None,
         dst_filepath: str | None = None,
-    ) -> str:
+    ) -> str | None:
         """Renders from a file or an string content and return final rendered value."""
         try:
             if template_file:
@@ -250,7 +253,7 @@ class ConfigManager:
                 template = template_env.get_template(template_file)
             else:
                 template_env = Environment(
-                    loader=DictLoader({"workload_params": template_content})
+                    loader=DictLoader({"workload_params": template_content or ""})
                 )
                 template = template_env.get_template("workload_params")
             content = template.render(values)
