@@ -11,7 +11,6 @@ import os
 
 from charms.operator_libs_linux.v1.systemd import (
     service_restart,
-    service_stop,
 )
 from overrides import override
 
@@ -88,7 +87,7 @@ class DPBenchmarkPebbleWorkloadBase(WorkloadBase):
     @override
     def reload(self) -> bool:
         """Reloads the workload service."""
-       ...
+        ...
 
     @override
     def read(self, path: str) -> list[str]:
