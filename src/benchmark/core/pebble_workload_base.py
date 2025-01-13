@@ -68,12 +68,12 @@ class DPBenchmarkPebbleWorkloadBase(WorkloadBase):
     @override
     def install(self) -> bool:
         """Installs the workload."""
-        return True
+        ...
 
     @override
     def start(self) -> bool:
         """Starts the workload service."""
-        return True
+        ...
 
     @override
     def restart(self) -> bool:
@@ -83,14 +83,12 @@ class DPBenchmarkPebbleWorkloadBase(WorkloadBase):
     @override
     def halt(self) -> bool:
         """Stop the benchmark service."""
-        if self.is_running():
-            return service_stop(self.paths.svc_name)
-        return self.is_stopped()
+        ...
 
     @override
     def reload(self) -> bool:
         """Reloads the workload service."""
-        return True
+       ...
 
     @override
     def read(self, path: str) -> list[str]:
