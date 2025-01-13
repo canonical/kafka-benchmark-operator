@@ -11,10 +11,11 @@ from ops.model import (
     BlockedStatus,
     MaintenanceStatus,
     StatusBase,
+    Unit,
     WaitingStatus,
 )
 
-from benchmark.events.peer import PeerRelationHandler
+from benchmark.core.models import PeerState
 from benchmark.literals import (
     DPBenchmarkLifecycleState,
     DPBenchmarkLifecycleTransition,
@@ -25,16 +26,19 @@ from benchmark.managers.config import ConfigManager
 class LifecycleManager:
     """The lifecycle manager class."""
 
-    def __init__(self, peers: PeerRelationHandler, config_manager: ConfigManager):
+    def __init__(
+        self,
+        peers: dict[Unit, PeerState],
+        this_unit: PeerState,
+        config_manager: ConfigManager,
+    ):
         self.peers = peers
+        self.this_unit = this_unit
         self.config_manager = config_manager
 
     def current(self) -> DPBenchmarkLifecycleState:
         """Return the current lifecycle state."""
-        return (
-            self.peers.unit_state(self.peers.this_unit()).lifecycle
-            or DPBenchmarkLifecycleState.UNSET
-        )
+        return self.peers[self.this_unit].lifecycle or DPBenchmarkLifecycleState.UNSET
 
     def make_transition(self, new_state: DPBenchmarkLifecycleState) -> bool:  # noqa: C901
         """Update the lifecycle state.
@@ -97,7 +101,7 @@ class LifecycleManager:
             if not self.config_manager.is_stopped() and not self.config_manager.stop():
                 return False
 
-        self.peers.unit_state(self.peers.this_unit()).lifecycle = new_state.value
+        self.peers[self.this_unit].lifecycle = new_state.value
         return True
 
     def next(
@@ -112,9 +116,9 @@ class LifecycleManager:
         return result.state if result else None
 
     def _peers_state(self) -> DPBenchmarkLifecycleState | None:
-        next_state = self.peers.unit_state(self.peers.this_unit()).lifecycle
-        for unit in self.peers.units():
-            neighbor = self.peers.unit_state(unit).lifecycle
+        next_state = self.peers[self.this_unit].lifecycle
+        for unit in self.peers.keys():
+            neighbor = self.peers[unit].lifecycle
             if neighbor is None:
                 continue
             elif self._compare_lifecycle_states(neighbor, next_state) > 0:
@@ -126,8 +130,8 @@ class LifecycleManager:
 
         That happens if all the peers are set as state value.
         """
-        for unit in self.peers.units():
-            if state != self.peers.unit_state(unit).lifecycle:
+        for unit in self.peers.keys():
+            if state != self.peers[unit].lifecycle:
                 return False
         return True
 
@@ -197,12 +201,12 @@ class _LifecycleState(ABC):
     def __init__(self, manager: LifecycleManager):
         self.manager = manager
 
-    from typing import Optional, Union
-
     @abstractmethod
     def next(
         self, transition: Optional[DPBenchmarkLifecycleTransition] = None
-    ) -> Optional["_LifecycleState"]: ...
+    ) -> Optional["_LifecycleState"]:
+        """Returns the next state given a transition request."""
+        ...
 
 
 class _StoppedLifecycleState(_LifecycleState):
@@ -213,10 +217,6 @@ class _StoppedLifecycleState(_LifecycleState):
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if self.manager.peers.test_name is None:
-            # We have to roll back to UNSET
-            return _UnsetLifecycleState(self.manager)
-
         if transition == DPBenchmarkLifecycleTransition.CLEAN:
             return _UnsetLifecycleState(self.manager)
 
@@ -240,10 +240,6 @@ class _FailedLifecycleState(_LifecycleState):
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if self.manager.peers.test_name is None:
-            # We have to roll back to UNSET
-            return _UnsetLifecycleState(self.manager)
-
         if transition == DPBenchmarkLifecycleTransition.CLEAN:
             return _UnsetLifecycleState(self.manager)
 
@@ -264,10 +260,6 @@ class _FinishedLifecycleState(_LifecycleState):
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if self.manager.peers.test_name is None:
-            # We have to roll back to UNSET
-            return _UnsetLifecycleState(self.manager)
-
         if transition == DPBenchmarkLifecycleTransition.CLEAN:
             return _UnsetLifecycleState(self.manager)
 
@@ -294,10 +286,6 @@ class _RunningLifecycleState(_LifecycleState):
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if self.manager.peers.test_name is None:
-            # We have to roll back to UNSET
-            return _UnsetLifecycleState(self.manager)
-
         if transition == DPBenchmarkLifecycleTransition.CLEAN:
             return _UnsetLifecycleState(self.manager)
 
@@ -331,10 +319,6 @@ class _AvailableLifecycleState(_LifecycleState):
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if self.manager.peers.test_name is None:
-            # We have to roll back to UNSET
-            return _UnsetLifecycleState(self.manager)
-
         if transition == DPBenchmarkLifecycleTransition.CLEAN:
             return _UnsetLifecycleState(self.manager)
 
@@ -361,10 +345,6 @@ class _PreparingLifecycleState(_LifecycleState):
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if self.manager.peers.test_name is None:
-            # We have to roll back to UNSET
-            return _UnsetLifecycleState(self.manager)
-
         if transition == DPBenchmarkLifecycleTransition.CLEAN:
             return _UnsetLifecycleState(self.manager)
 
