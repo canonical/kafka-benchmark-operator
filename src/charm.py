@@ -125,8 +125,9 @@ class KafkaDatabaseState(DatabaseState):
         )
         self.database_key = "topic"
 
-    def get_full_state(self) -> DPBenchmarkBaseDatabaseModel | None:
-        """Returns the value of the key."""
+    @override
+    def model(self) -> DPBenchmarkBaseDatabaseModel | None:
+        """Returns the database model."""
         if not self.relation or not (endpoints := self.remote_data.get("endpoints")):
             return None
         if not (dbmodel := super().model()):
