@@ -11,7 +11,7 @@ as changes in the configuration.
 import logging
 from typing import Any, Optional
 
-from ops.model import Application, Relation, Unit
+from ops.model import Application, Relation, RelationDataContent, Unit
 from overrides import override
 from pydantic import BaseModel, error_wrappers, root_validator
 
@@ -123,20 +123,18 @@ class RelationState:
         self.scope = scope
 
     @property
-    def relation_data(self) -> dict[str, str]:
+    def relation_data(self) -> RelationDataContent | dict[Any, Any]:
         """Returns the relation data."""
         if self.relation:
             return self.relation.data[self.component]
         return {}
 
     @property
-    def remote_data(self) -> dict[str, str]:
+    def remote_data(self) -> RelationDataContent | dict[Any, Any]:
         """Returns the remote relation data."""
-        if not self.relation:
+        if not self.relation or self.scope != Scope.APP:
             return {}
-        if self.scope == Scope.APP:
-            return self.relation.data[self.relation.app]
-        return self.relation.data[self.relation.unit]
+        return self.relation.data[self.relation.app]
 
     def __bool__(self) -> bool:
         """Boolean evaluation based on the existence of self.relation."""
