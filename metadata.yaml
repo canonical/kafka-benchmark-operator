@@ -1,0 +1,30 @@
+# Copyright 2024 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: kafka-benchmark
+display-name: Charmed Kafka Benchmark
+
+summary: Generates load against your workload and collect performance metrics to Prometheus.
+description: |
+  Run this charm to connect with a kafka deployment and test the performance or generate a load against the cluster.
+
+# TODO: Update
+# docs: https://discourse.charmhub.io/t/charmed-kafka-benchmark-documentation-home/13945
+source: https://github.com/canonical/kafka-benchmark-operator
+issues: https://github.com/canonical/kafka-benchmark-operator/issues
+website: https://charmhub.io/kafka-benchmark
+maintainers:
+  - Canonical Data Platform <data-platform@lists.launchpad.net>
+
+peers:
+  benchmark-peer:
+    interface: benchmark_peers
+
+provides:
+  cos-agent:
+    interface: cos_agent
+    limit: 1
+
+requires:
+  kafka:
+    interface: kafka_client
+    limit: 1
