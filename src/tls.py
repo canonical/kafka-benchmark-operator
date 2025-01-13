@@ -54,12 +54,14 @@ class JavaTlsHandler(RelationHandler):
 
     def _tls_relation_broken(self, event: EventBase) -> None:
         """Handler for `certificates_relation_broken` event."""
-        event.relation.data[self.model.unit]["certificate_signing_requests"] = json.dumps({
-            "csr": "",
-            "certificate": "",
-            "ca": "",
-            "ca-cert": "",
-        })
+        event.relation.data[self.model.unit]["certificate_signing_requests"] = json.dumps(
+            {
+                "csr": "",
+                "certificate": "",
+                "ca": "",
+                "ca-cert": "",
+            }
+        )
 
     def _trusted_relation_joined(self, event: EventBase) -> None:
         """Generate a CSR so the tls-certificates operator works as expected.
