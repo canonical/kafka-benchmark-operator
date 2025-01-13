@@ -16,17 +16,17 @@ This charm should also be the main entry point to all the modelling of your benc
 
 import logging
 import subprocess
-from abc import ABC, abstractmethod
 from typing import Any
 
-import ops
+from charms.data_platform_libs.v0.data_models import TypedCharmBase
 from charms.grafana_agent.v0.cos_agent import COSAgentProvider
-from ops.charm import CharmEvents
+from ops.charm import ActionEvent, CharmEvents
 from ops.framework import EventBase, EventSource
 from ops.model import BlockedStatus
 
 from benchmark.core.models import DPBenchmarkLifecycleState
 from benchmark.core.pebble_workload_base import DPBenchmarkPebbleWorkloadBase
+from benchmark.core.structured_config import BenchmarkCharmConfig
 from benchmark.core.systemd_workload_base import DPBenchmarkSystemdWorkloadBase
 from benchmark.core.workload_base import WorkloadBase
 from benchmark.events.db import DatabaseRelationHandler
@@ -70,13 +70,15 @@ def workload_build(workload_params_template: str) -> WorkloadBase:
     return DPBenchmarkSystemdWorkloadBase(workload_params_template)
 
 
-class DPBenchmarkCharmBase(ops.CharmBase, ABC):
+class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
     """The base benchmark class."""
 
-    on = DPBenchmarkEvents()  # pyright: ignore [reportGeneralTypeIssues]
+    on = DPBenchmarkEvents()  # pyright: ignore [reportAssignmentType]
 
     RESOURCE_DEB_NAME = "benchmark-deb"
     workload_params_template = ""
+
+    config_type = BenchmarkCharmConfig
 
     def __init__(self, *args, db_relation_name: str, workload: WorkloadBase | None = None):
         super().__init__(*args)
@@ -119,8 +121,8 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
 
         self.config_manager = ConfigManager(
             workload=self.workload,
-            database=self.database.state,
-            peer=self.peers.peers(),
+            database_state=self.database.state,
+            peers=self.peers.peers(),
             config=self.config,
             labels=self.labels,
         )
@@ -129,11 +131,6 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
             self.peers.this_unit(),
             self.config_manager,
         )
-
-    @abstractmethod
-    def supported_workloads(self) -> list[str]:
-        """List of supported workloads."""
-        ...
 
     ###########################################################################
     #
@@ -154,11 +151,11 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
             return
 
         if self.unit.is_leader():
-            self.peers.state.set(DPBenchmarkLifecycleState.UPLOADING)
+            self.peers.state.lifecycle = DPBenchmarkLifecycleState.UPLOADING
             # Raise we are running an upload and we will check the status later
             self.on.check_upload.emit()
             return
-        self.peers.state.set(DPBenchmarkLifecycleState.FINISHED)
+        self.peers.state.lifecycle = DPBenchmarkLifecycleState.FINISHED
 
     def _on_check_upload(self, event: EventBase) -> None:
         """Check if the upload is finished."""
@@ -176,19 +173,12 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
         benchmark service and the benchmark status.
         """
         try:
-            status = self.database.state.get()
+            status = self.database.state.model()
         except DPBenchmarkMissingOptionsError as e:
             self.unit.status = BlockedStatus(str(e))
             return
         if not status:
             self.unit.status = BlockedStatus("No database relation available")
-            return
-
-        # We need to narrow the options of workload_name to the supported ones
-        if self.config.get("workload_name") not in self.supported_workloads():
-            self.unit.status = BlockedStatus(
-                f"Unsupported workload: {self.config.get('workload_name')}"
-            )
             return
 
         # Now, let's check if we need to update our lifecycle position
@@ -197,13 +187,6 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
 
     def _on_config_changed(self, event: EventBase) -> None:
         """Config changed event."""
-        # We need to narrow the options of workload_name to the supported ones
-        if self.config.get("workload_name") not in self.supported_workloads():
-            self.unit.status = BlockedStatus(
-                f"Unsupported workload: {self.config.get('workload_name')}"
-            )
-            return
-
         if not self.config_manager.is_prepared():
             # nothing to do: set the status and leave
             self._on_update_status()
@@ -236,14 +219,12 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
 
     def _preflight_checks(self) -> bool:
         """Check if we have the necessary relations."""
-        if len(self.peers.units()) > 0 and not bool(self.peers.state.get()):
-            return False
         try:
-            return bool(self.database.state.get())
+            return bool(self.database.state.model())
         except DPBenchmarkMissingOptionsError:
             return False
 
-    def on_prepare_action(self, event: EventBase) -> None:
+    def on_prepare_action(self, event: ActionEvent) -> None:
         """Process the prepare action."""
         if not self._preflight_checks():
             event.fail("Missing DB or S3 relations")
@@ -268,7 +249,7 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
         self.unit.status = self.lifecycle.status
         event.set_results({"message": "Benchmark is being prepared"})
 
-    def on_run_action(self, event: EventBase) -> None:
+    def on_run_action(self, event: ActionEvent) -> None:
         """Process the run action."""
         if not self._preflight_checks():
             event.fail("Missing DB or S3 relations")
@@ -278,7 +259,7 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
             event.fail("Failed to run the benchmark")
         event.set_results({"message": "Benchmark has started"})
 
-    def on_stop_action(self, event: EventBase) -> None:
+    def on_stop_action(self, event: ActionEvent) -> None:
         """Process the stop action."""
         if not self._preflight_checks():
             event.fail("Missing DB or S3 relations")
@@ -288,7 +269,7 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
             event.fail("Failed to stop the benchmark")
         event.set_results({"message": "Benchmark has stopped"})
 
-    def on_clean_action(self, event: EventBase) -> None:
+    def on_clean_action(self, event: ActionEvent) -> None:
         """Process the clean action."""
         if not self._preflight_checks():
             event.fail("Missing DB or S3 relations")
@@ -318,7 +299,12 @@ class DPBenchmarkCharmBase(ops.CharmBase, ABC):
 
     def _unit_ip(self) -> str:
         """Current unit ip."""
-        return self.model.get_binding(PEER_RELATION).network.bind_address
+        bind_address = None
+        if PEER_RELATION:
+            if binding := self.model.get_binding(PEER_RELATION):
+                bind_address = binding.network.bind_address
+
+        return str(bind_address) if bind_address else ""
 
     def _update_state(self) -> None:
         """Update the state of the charm."""
