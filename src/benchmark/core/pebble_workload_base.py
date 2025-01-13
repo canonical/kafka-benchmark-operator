@@ -20,13 +20,9 @@ from benchmark.core.workload_base import WorkloadBase, WorkloadTemplatePaths
 class DPBenchmarkPebbleTemplatePaths(WorkloadTemplatePaths):
     """Represents the benchmark service template paths."""
 
-    def __init__(self):
-        super().__init__()
-        self.svc_name = "dpe_benchmark"
-
     @property
     @override
-    def service(self) -> str | None:
+    def service(self) -> str:
         """The optional path to the service file managing the script."""
         return f"/etc/systemd/system/{self.svc_name}.service"
 
@@ -43,6 +39,12 @@ class DPBenchmarkPebbleTemplatePaths(WorkloadTemplatePaths):
     def templates(self) -> str:
         """The path to the workload template folder."""
         return os.path.join(os.environ.get("CHARM_DIR", ""), "templates")
+
+    @property
+    @override
+    def results(self) -> str:
+        """The path to the results folder."""
+        return "/root/.benchmark/charmed_parameters/results/"
 
     @property
     @override
