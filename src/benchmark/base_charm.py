@@ -162,12 +162,17 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
             self._on_update_status()
             return
 
-        if not self.config_manager.is_stopped() or not self.config_manager.stop():
+        if (
+            self.lifecycle.current() == DPBenchmarkLifecycleState.RUNNING
+            and self.config_manager.is_running()
+            and not self.config_manager.stop()
+        ):
             # The stop process may be async so we defer
             logger.warning("Config changed: tried stopping the service but returned False")
             event.defer()
             return
-        self.config_manager.run()
+        elif self.lifecycle.current() == DPBenchmarkLifecycleState.RUNNING:
+            self.config_manager.run()
         self._on_update_status()
 
     def scrape_config(self) -> list[dict[str, Any]]:

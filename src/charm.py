@@ -245,10 +245,12 @@ class KafkaPeersRelationHandler(PeerRelationHandler):
     @override
     def peers(self) -> list[str]:
         """Return the peers."""
+        if not self.relation:
+            return []
         return [
             f"{self.relation.data[u]['ingress-address']}:{8080 + 2 * port}"
             for u in list(self.units()) + [self.this_unit()]
-            for port in range(0, self.charm.config.get("parallel_processes"))
+            for port in range(0, self.charm.config.parallel_processes)
         ]
 
 
@@ -489,13 +491,13 @@ class KafkaBenchmarkActionsHandler(ActionsHandler):
 
         In kafka case, we need the client relation to be able to connect to the database.
         """
-        if int(self.config.parallel_processes) < 2:
+        if int(self.config.parallel_processes) * len(self.charm.peers.all_unit_states().keys()) < 2:
             logger.error("The number of parallel processes must be greater than 1.")
             self.unit.status = BlockedStatus(
                 "The number of parallel processes must be greater than 1."
             )
             return False
-        return self._preflight_checks()
+        return super()._preflight_checks()
 
     @override
     def on_run_action(self, event: ActionEvent) -> None:
@@ -591,7 +593,7 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
         self.framework.observe(self.database.on.db_config_update, self._on_config_changed)
 
     @override
-    def _on_install(self, _: EventBase) -> None:
+    def _on_install(self, event: EventBase) -> None:
         """Install the charm."""
         apt.add_package(f"openjdk-{JAVA_VERSION}-jre", update_cache=True)
 

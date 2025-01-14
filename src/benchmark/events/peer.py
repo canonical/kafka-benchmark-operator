@@ -72,7 +72,9 @@ class PeerRelationHandler(Object):
 
     def units(self) -> list[Unit]:
         """Return the peer units."""
-        return self.relation.units
+        if not self.relation:
+            return []
+        return list(self.relation.units)
 
     def this_unit(self) -> Unit:
         """Return the current unit."""
@@ -118,4 +120,6 @@ class PeerRelationHandler(Object):
 
     def all_unit_states(self) -> dict[Unit, PeerState]:
         """Return all the unit states."""
+        if not self.relation:
+            return {}
         return {unit: self.unit_state(unit) for unit in self.units() + [self.this_unit()]}
