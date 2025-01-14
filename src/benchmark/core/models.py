@@ -190,6 +190,7 @@ class PeerState(RelationState):
         else:
             self.set({LIFECYCLE_KEY: status})
 
+<<<<<<< HEAD
     @property
     def test_name(self) -> str | None:
         """Return the test name."""
@@ -200,6 +201,8 @@ class PeerState(RelationState):
         """Sets the test name."""
         self.set({"test_name": name})
 
+=======
+>>>>>>> origin/DPE-6101-add-libs-and-gitignore
 
 class DatabaseState(RelationState):
     """State collection for the database relation."""

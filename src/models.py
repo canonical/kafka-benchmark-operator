@@ -1,20 +1,27 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+<<<<<<< HEAD
 """Java Workload Path details."""
 
 import logging
 import os
+=======
+"""Structured configuration for the Kafka charm."""
+>>>>>>> origin/DPE-6101-add-libs-and-gitignore
 
 from pydantic import BaseModel, validator
 
 from benchmark.core.structured_config import BenchmarkCharmConfig
+<<<<<<< HEAD
 from benchmark.core.workload_base import WorkloadTemplatePaths
 from benchmark.literals import BENCHMARK_WORKLOAD_PATH
 from literals import JAVA_VERSION
 
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)
+=======
+>>>>>>> origin/DPE-6101-add-libs-and-gitignore
 
 
 class WorkloadType(BaseModel):
@@ -25,6 +32,7 @@ class WorkloadType(BaseModel):
 
 
 WorkloadTypeParameters = {
+<<<<<<< HEAD
     "test_mode": WorkloadType(message_size=1024, producer_rate=1),
     "default": WorkloadType(message_size=1024, producer_rate=100000),
     "max": WorkloadType(message_size=1024, producer_rate=10000000),
@@ -68,6 +76,12 @@ class JavaWorkloadPaths:
         return os.path.join(BENCHMARK_WORKLOAD_PATH, "keystore.jks")
 
 
+=======
+    "default": WorkloadType(message_size=1024, producer_rate=100000),
+}
+
+
+>>>>>>> origin/DPE-6101-add-libs-and-gitignore
 class KafkaBenchmarkCharmConfig(BenchmarkCharmConfig):
     """Manager for the structured configuration."""
 
