@@ -107,7 +107,6 @@ class DPBenchmarkSystemdWorkloadBase(WorkloadBase):
     def reload(self) -> bool:
         """Reloads the script."""
         return daemon_reload()
-<<<<<<< HEAD
 
     def enable(self) -> bool:
         """Enables service."""
@@ -116,8 +115,6 @@ class DPBenchmarkSystemdWorkloadBase(WorkloadBase):
     def disable(self) -> bool:
         """Disables service."""
         return service_disable(self.paths.svc_name)
-=======
->>>>>>> origin/DPE-6101-add-libs-and-gitignore
 
     @override
     def read(self, path: str) -> list[str]:
