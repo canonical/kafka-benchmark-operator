@@ -8,8 +8,8 @@ import argparse
 import os
 import re
 
-from overrides import override
 from pydantic import BaseModel
+from typing_extensions import override
 
 from benchmark.literals import BENCHMARK_WORKLOAD_PATH
 from benchmark.wrapper.core import (
@@ -137,7 +137,7 @@ class KafkaWorkloadToProcessMapping(WorkloadToProcessMapping):
         """Returns the mapping for the run phase."""
         driver_path = os.path.join(BENCHMARK_WORKLOAD_PATH, "worker_params.yaml")
         workload_path = os.path.join(BENCHMARK_WORKLOAD_PATH, "dpe_benchmark.json")
-        processes = [
+        processes: list[BenchmarkProcess] = [
             KafkaBenchmarkProcess(
                 model=ProcessModel(
                     cmd=f"""sudo bin/benchmark-worker -p {peer.split(":")[1]} -sp {int(peer.split(":")[1]) + 1}""",

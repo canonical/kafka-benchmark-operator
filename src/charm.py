@@ -33,9 +33,10 @@ from benchmark.base_charm import DPBenchmarkCharmBase
 from benchmark.core.models import (
     DatabaseState,
     DPBenchmarkBaseDatabaseModel,
-    RelationState,
 )
+from benchmark.core.structured_config import BenchmarkCharmConfig
 from benchmark.core.workload_base import WorkloadBase
+from benchmark.events.actions import ActionsHandler
 from benchmark.events.db import DatabaseRelationHandler
 from benchmark.events.peer import PeerRelationHandler
 from benchmark.literals import (
@@ -45,6 +46,7 @@ from benchmark.literals import (
 from benchmark.managers.config import ConfigManager
 from benchmark.managers.lifecycle import LifecycleManager
 from literals import CLIENT_RELATION_NAME, TOPIC_NAME
+from models import KafkaBenchmarkCharmConfig
 
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)
@@ -123,12 +125,13 @@ class KafkaDatabaseState(DatabaseState):
         )
         self.database_key = "topic"
 
-    def get(self) -> DPBenchmarkBaseDatabaseModel | None:
-        """Returns the value of the key."""
+    @override
+    def model(self) -> DPBenchmarkBaseDatabaseModel | None:
+        """Returns the database model."""
         if not self.relation or not (endpoints := self.remote_data.get("endpoints")):
             return None
-
-        dbmodel = super().get()
+        if not (dbmodel := super().model()):
+            return None
         return DPBenchmarkBaseDatabaseModel(
             hosts=endpoints.split(","),
             unix_socket=dbmodel.unix_socket,
@@ -168,7 +171,7 @@ class KafkaDatabaseRelationHandler(DatabaseRelationHandler):
 
     @property
     @override
-    def state(self) -> RelationState:
+    def state(self) -> KafkaDatabaseState:
         """Returns the state of the database."""
         if not (
             self.relation and self.client and self.relation.id in self.client.fetch_relation_data()
@@ -192,11 +195,13 @@ class KafkaDatabaseRelationHandler(DatabaseRelationHandler):
         """Returns the data_interfaces client corresponding to the database."""
         return self._internal_client
 
-    def bootstrap_servers(self) -> str | None:
+    def bootstrap_servers(self) -> list[str] | None:
         """Return the bootstrap servers."""
-        return self.state.get().hosts
+        if not self.state or not (model := self.state.model()):
+            return None
+        return model.hosts
 
-    def tls(self) -> tuple[str, str] | None:
+    def tls(self) -> tuple[str | None, str | None]:
         """Return the TLS certificates."""
         if not self.state.tls_ca:
             return self.state.tls, None
@@ -224,7 +229,7 @@ class KafkaConfigManager(ConfigManager):
         workload: WorkloadBase,
         database_state: DatabaseState,
         peers: list[str],
-        config: dict[str, Any],
+        config: BenchmarkCharmConfig,
         labels: str,
     ):
         super().__init__(workload, database_state, peers, config, labels)
@@ -237,7 +242,9 @@ class KafkaConfigManager(ConfigManager):
         dst_path: str | None = None,
     ) -> str | None:
         """Render the workload parameters."""
-        values = self.get_execution_options().dict() | {
+        if not (options := self.get_execution_options()):
+            return None
+        values = options.dict() | {
             "charm_root": os.environ.get("CHARM_DIR", ""),
             "command": transition.value,
         }
@@ -282,18 +289,19 @@ class KafkaConfigManager(ConfigManager):
 
     def get_worker_params(self) -> dict[str, Any]:
         """Return the workload parameters."""
-        db = self.database.state.get()
+        if not (db := self.database_state.model()):
+            return {}
 
         return {
-            "total_number_of_brokers": len(self.peer.units()) + 1,
+            "total_number_of_brokers": len(self.peers) + 1,
             # We cannot have quotes nor brackets in this string.
             # Therefore, we render the entire line instead
             "list_of_brokers_bootstrap": "bootstrap.servers={}".format(
-                ",".join(self.database.bootstrap_servers())
+                ",".join(db.hosts) if db.hosts else ""
             ),
             "username": db.username,
             "password": db.password,
-            "threads": self.config.get("threads", 1) if self.config.get("threads") > 0 else 1,
+            "threads": self.config.threads if self.config.threads > 0 else 1,
         }
 
     def _render_worker_params(
@@ -312,9 +320,9 @@ class KafkaConfigManager(ConfigManager):
     def get_workload_params(self) -> dict[str, Any]:
         """Return the worker parameters."""
         return {
-            "partitionsPerTopic": self.config.get("parallel_processes"),
-            "duration": int(self.config.get("duration") / 60)
-            if self.config.get("duration") > 0
+            "partitionsPerTopic": self.config.parallel_processes,
+            "duration": int(self.config.duration / 60)
+            if self.config.duration > 0
             else TEN_YEARS_IN_MINUTES,
             "charm_root": os.environ.get("CHARM_DIR", ""),
         }
@@ -322,7 +330,7 @@ class KafkaConfigManager(ConfigManager):
     @override
     def _render_params(
         self,
-        dst_path: str | None = None,
+        dst_path: str,
     ) -> str | None:
         """Render the workload parameters.
 
@@ -344,12 +352,16 @@ class KafkaConfigManager(ConfigManager):
         # First, clean if a topic already existed
         self.clean()
         try:
-            topic = NewTopic(
-                name=self.database.state.get().db_name,
-                num_partitions=self.config.get("threads") * self.config.get("parallel_processes"),
-                replication_factor=self.client.replication_factor,
-            )
-            self.client.create_topic(topic)
+            if model := self.database_state.model():
+                topic = NewTopic(
+                    name=model.db_name,
+                    num_partitions=self.config.threads * self.config.parallel_processes,
+                    replication_factor=self.client.replication_factor,
+                )
+                self.client.create_topic(topic)
+            else:
+                logger.warning("No database model found")
+                return False
         except Exception as e:
             logger.debug(f"Error creating topic: {e}")
 
@@ -360,16 +372,18 @@ class KafkaConfigManager(ConfigManager):
     def is_prepared(self) -> bool:
         """Checks if the benchmark service has passed its "prepare" status."""
         try:
-            return self.database.state.get().db_name in self.client._admin_client.list_topics()
+            if model := self.database_state.model():
+                return model.db_name in self.client._admin_client.list_topics()
         except Exception as e:
             logger.info(f"Error describing topic: {e}")
-            return False
+        return False
 
     @override
     def clean(self) -> bool:
         """Clean the benchmark service."""
         try:
-            self.client.delete_topics([self.database.state.get().db_name])
+            if model := self.database_state.model():
+                self.client.delete_topics([model.db_name])
         except Exception as e:
             logger.info(f"Error deleting topic: {e}")
         return self.is_cleaned()
@@ -378,7 +392,9 @@ class KafkaConfigManager(ConfigManager):
     def is_cleaned(self) -> bool:
         """Checks if the benchmark service has passed its "prepare" status."""
         try:
-            return self.database.state.get().db_name not in self.client._admin_client.list_topics()
+            if not (model := self.database_state.model()):
+                return False
+            return model.db_name not in self.client._admin_client.list_topics()
         except Exception as e:
             logger.info(f"Error describing topic: {e}")
             return False
@@ -386,25 +402,57 @@ class KafkaConfigManager(ConfigManager):
     @cached_property
     def client(self) -> KafkaClient:
         """Return the Kafka client."""
-        state = self.database.state.get()
+        if not (state := self.database_state.model()):
+            return KafkaClient(
+                servers=[],
+                username=None,
+                password=None,
+                security_protocol="SASL_PLAINTEXT",
+                replication_factor=1,
+            )
         return KafkaClient(
-            servers=self.database.bootstrap_servers(),
+            servers=state.hosts or [],
             username=state.username,
             password=state.password,
             security_protocol="SASL_SSL" if (state.tls or state.tls_ca) else "SASL_PLAINTEXT",
             cafile_path=state.tls_ca,
             certfile_path=state.tls,
-            replication_factor=len(self.peer.units()) + 1,
+            replication_factor=len(self.peers) + 1,
         )
+
+
+class KafkaBenchmarkActionsHandler(ActionsHandler):
+    """Handle the actions for the benchmark charm."""
+
+    def __init__(self, charm: DPBenchmarkCharmBase):
+        """Initialize the class."""
+        super().__init__(charm)
+        self.config: BenchmarkCharmConfig = charm.config
+
+    @override
+    def _preflight_checks(self) -> bool:
+        """Check if we have the necessary relations.
+
+        In kafka case, we need the client relation to be able to connect to the database.
+        """
+        if int(self.config.parallel_processes) < 2:
+            logger.error("The number of parallel processes must be greater than 1.")
+            self.unit.status = BlockedStatus(
+                "The number of parallel processes must be greater than 1."
+            )
+            return False
+        return self._preflight_checks()
 
 
 class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
     """Charm the service."""
 
-    def __init__(self, *args):
-        self.workload_params_template = KAFKA_WORKLOAD_PARAMS_TEMPLATE
+    config_type = KafkaBenchmarkCharmConfig
 
+    def __init__(self, *args):
         super().__init__(*args, db_relation_name=CLIENT_RELATION_NAME)
+
+        self.workload_params_template = KAFKA_WORKLOAD_PARAMS_TEMPLATE
         self.labels = ",".join([self.model.name, self.unit.name.replace("/", "-")])
 
         self.database = KafkaDatabaseRelationHandler(
@@ -414,8 +462,8 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
         self.peer_handler = KafkaPeersRelationHandler(self, PEER_RELATION)
         self.config_manager = KafkaConfigManager(
             workload=self.workload,
-            database=self.database,
-            peer=self.peer_handler,
+            database_state=self.database.state,
+            peers=self.peer_handler.peers(),
             config=self.config,
             labels=self.labels,
         )
@@ -424,40 +472,22 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
             self.peers.this_unit(),
             self.config_manager,
         )
+        self.actions = KafkaBenchmarkActionsHandler(self)
 
         self.framework.observe(self.database.on.db_config_update, self._on_config_changed)
 
     @override
-    def _on_install(self, event: EventBase) -> None:
+    def _on_install(self, _: EventBase) -> None:
         """Install the charm."""
         apt.add_package("openjdk-18-jre", update_cache=True)
 
     @override
-    def _preflight_checks(self) -> bool:
-        """Check if we have the necessary relations.
-
-        In kafka case, we need the client relation to be able to connect to the database.
-        """
-        if self.config.get("parallel_processes") < 2:
-            logger.error("The number of parallel processes must be greater than 1.")
-            self.unit.status = BlockedStatus(
-                "The number of parallel processes must be greater than 1."
-            )
-            return False
-        return super()._preflight_checks()
-
-    @override
     def _on_config_changed(self, event):
         """Handle the config changed event."""
-        if not self._preflight_checks():
+        if not self.actions._preflight_checks():
             event.defer()
             return
         return super()._on_config_changed(event)
-
-    @override
-    def supported_workloads(self) -> list[str]:
-        """List of supported workloads."""
-        return ["default"]
 
 
 if __name__ == "__main__":

@@ -24,6 +24,9 @@ class MainWrapper:
         """Prepares the workload and runs the benchmark."""
         manager, _ = self.mapping.map(self.args.command)
 
+        if not manager:
+            raise ValueError("No manager found for the command")
+
         logging.basicConfig(filename=self.args.log_file, encoding="utf-8", level=logging.INFO)
 
         def _exit(*args, **kwargs):

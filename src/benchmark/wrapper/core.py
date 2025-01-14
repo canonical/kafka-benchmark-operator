@@ -116,18 +116,18 @@ class KafkaBenchmarkSample(BaseModel):
 class KafkaBenchmarkSampleMatcher(Enum):
     """Hard-coded regexes to process the benchmark sample."""
 
-    produce_rate: str = r"Pub rate\s+(.*?)\s+msg/s"
-    produce_throughput: str = r"Pub rate\s+\d+.\d+\s+msg/s\s+/\s+(.*?)\s+MB/s"
-    produce_error_rate: str = r"Pub err\s+(.*?)\s+err/s"
-    produce_latency_avg: str = r"Pub Latency \(ms\) avg:\s+(.*?)\s+"
+    produce_rate = r"Pub rate\s+(.*?)\s+msg/s"
+    produce_throughput = r"Pub rate\s+\d+.\d+\s+msg/s\s+/\s+(.*?)\s+MB/s"
+    produce_error_rate = r"Pub err\s+(.*?)\s+err/s"
+    produce_latency_avg = r"Pub Latency \(ms\) avg:\s+(.*?)\s+"
     # Match: Pub Latency (ms) avg: 1478.1 - 50%: 1312.6 - 99%: 4981.5 - 99.9%: 5104.7 - Max: 5110.5
     # Generates: [('1478.1', '1312.6', '4981.5', '5104.7', '5110.5')]
-    produce_latency_percentiles: str = r"Pub Latency \(ms\) avg:\s+(.*?)\s+- 50%:\s+(.*?)\s+- 99%:\s+(.*?)\s+- 99.9%:\s+(.*?)\s+- Max:\s+(.*?)\s+"
+    produce_latency_percentiles = r"Pub Latency \(ms\) avg:\s+(.*?)\s+- 50%:\s+(.*?)\s+- 99%:\s+(.*?)\s+- 99.9%:\s+(.*?)\s+- Max:\s+(.*?)\s+"
 
     # Pub Delay Latency (us) avg: 21603452.9 - 50%: 21861759.0 - 99%: 23621631.0 - 99.9%: 24160895.0 - Max: 24163839.0
     # Generates: [('21603452.9', '21861759.0', '23621631.0', '24160895.0', '24163839.0')]
-    produce_latency_delay_percentiles: str = r"Pub Delay Latency \(us\) avg:\s+(.*?)\s+- 50%:\s+(.*?)\s+- 99%:\s+(.*?)\s+- 99.9%:\s+(.*?)\s+- Max:\s+(\d+\.\d+)"
+    produce_latency_delay_percentiles = r"Pub Delay Latency \(us\) avg:\s+(.*?)\s+- 50%:\s+(.*?)\s+- 99%:\s+(.*?)\s+- 99.9%:\s+(.*?)\s+- Max:\s+(\d+\.\d+)"
 
-    consume_rate: str = r"Cons rate\s+(.*?)\s+msg/s"
-    consume_throughput: str = r"Cons rate\s+\d+.\d+\s+msg/s\s+/\s+(.*?)\s+MB/s"
-    consume_backlog: str = r"Backlog:\s+(.*?)\s+K"
+    consume_rate = r"Cons rate\s+(.*?)\s+msg/s"
+    consume_throughput = r"Cons rate\s+\d+.\d+\s+msg/s\s+/\s+(.*?)\s+MB/s"
+    consume_backlog = r"Backlog:\s+(.*?)\s+K"
