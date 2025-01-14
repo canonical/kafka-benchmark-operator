@@ -5,6 +5,7 @@
 
 import logging
 import os
+
 from pydantic import BaseModel, validator
 
 from benchmark.core.structured_config import BenchmarkCharmConfig

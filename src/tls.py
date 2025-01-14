@@ -16,10 +16,10 @@ from charms.tls_certificates_interface.v1.tls_certificates import (
     generate_csr,
     generate_private_key,
 )
-from ops.charm import CharmBase
-from ops.framework import EventBase
+from ops.charm import RelationEvent
 from ops.model import ModelError, SecretNotFoundError
 
+from benchmark.base_charm import DPBenchmarkCharmBase
 from benchmark.events.handler import RelationHandler
 from literals import TRUSTED_CA_RELATION, TRUSTSTORE_LABEL
 from models import JavaWorkloadPaths
@@ -33,7 +33,7 @@ class JavaTlsHandler(RelationHandler):
 
     def __init__(
         self,
-        charm: CharmBase,
+        charm: DPBenchmarkCharmBase,
     ):
         super().__init__(charm, TRUSTED_CA_RELATION)
         self.charm = charm
@@ -52,18 +52,17 @@ class JavaTlsHandler(RelationHandler):
             self._tls_relation_broken,
         )
 
-    def _tls_relation_broken(self, event: EventBase) -> None:
+    def _tls_relation_broken(self, event: RelationEvent) -> None:
         """Handler for `certificates_relation_broken` event."""
-        event.relation.data[self.model.unit]["certificate_signing_requests"] = json.dumps(
-            {
-                "csr": "",
-                "certificate": "",
-                "ca": "",
-                "ca-cert": "",
-            }
-        )
+        cas = {
+            "csr": "",
+            "certificate": "",
+            "ca": "",
+            "ca-cert": "",
+        }
+        event.relation.data[self.model.unit]["certificate_signing_requests"] = json.dumps(cas)
 
-    def _trusted_relation_joined(self, event: EventBase) -> None:
+    def _trusted_relation_joined(self, event: RelationEvent) -> None:
         """Generate a CSR so the tls-certificates operator works as expected.
 
         We do not need the CSR or the following certificate. Therefore, we will not use the
@@ -108,7 +107,7 @@ class JavaTlsHandler(RelationHandler):
                 certificate_data[key] = raw_relation_data[key]
         return certificate_data
 
-    def _trusted_relation_changed(self, event: EventBase) -> None:
+    def _trusted_relation_changed(self, event: RelationEvent) -> None:
         """Overrides the requirer logic of TLSInterface."""
         if not event.relation or not event.relation.app:
             # This is a relation broken event, we may not have this information available.
@@ -141,7 +140,7 @@ class JavaTlsStoreManager:
 
     def __init__(
         self,
-        charm: CharmBase,
+        charm: DPBenchmarkCharmBase,
     ):
         self.workload = charm.workload
         self.java_paths = JavaWorkloadPaths(self.workload.paths)

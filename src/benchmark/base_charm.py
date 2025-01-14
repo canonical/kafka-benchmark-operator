@@ -20,7 +20,7 @@ from typing import Any
 
 from charms.data_platform_libs.v0.data_models import TypedCharmBase
 from charms.grafana_agent.v0.cos_agent import COSAgentProvider
-from ops.charm import CharmEvents
+from ops.charm import CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.model import BlockedStatus
 
@@ -112,7 +112,7 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
             peers=self.peers.peers(),
             config=self.config,
             labels=self.labels,
-            test_name=self.peers.test_name,
+            test_name=self.peers.test_name or "",
         )
         self.lifecycle = LifecycleManager(
             self.peers.all_unit_states(),
@@ -131,6 +131,9 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
         """Install event."""
         self.workload.install()
         self.peers.state.lifecycle = DPBenchmarkLifecycleState.UNSET
+
+    def _on_collect_unit_status(self, _: CollectStatusEvent):
+        self.unit.status = self.lifecycle.status
 
     def _on_update_status(self, event: EventBase | None = None) -> None:
         """Set status for the operator and finishes the service.

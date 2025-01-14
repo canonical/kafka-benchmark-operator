@@ -66,7 +66,9 @@ class PeerRelationHandler(Object):
             if not (state := self.charm.lifecycle.next(DPBenchmarkLifecycleTransition.STOP)):
                 return
             self.charm.lifecycle.make_transition(state)
-            self.unit.status = WaitingStatus("Stopping the benchmark: peer unit count changed.")
+            self.charm.unit.status = WaitingStatus(
+                "Stopping the benchmark: peer unit count changed."
+            )
 
     def units(self) -> list[Unit]:
         """Return the peer units."""
@@ -113,3 +115,7 @@ class PeerRelationHandler(Object):
             scope=Scope.APP,
         )
         state.test_name = name
+
+    def all_unit_states(self) -> dict[Unit, PeerState]:
+        """Return all the unit states."""
+        return {unit: self.unit_state(unit) for unit in self.units() + [self.this_unit()]}

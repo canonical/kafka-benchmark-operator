@@ -34,12 +34,6 @@ class DPBenchmarkPebbleTemplatePaths(WorkloadTemplatePaths):
 
     @property
     @override
-    def results(self) -> str:
-        """The path to the results folder."""
-        return "/root/.benchmark/charmed_parameters/results/"
-
-    @property
-    @override
     def service_template(self) -> str:
         """The service template file."""
         return os.path.join(self.templates, "dpe_benchmark.service.j2")
@@ -57,6 +51,18 @@ class DPBenchmarkPebbleWorkloadBase(WorkloadBase):
         super().__init__(workload_params_template)
         self.paths = DPBenchmarkPebbleTemplatePaths()
         os.chmod(self.paths.workload_params, 0o700)
+
+    @property
+    @override
+    def user(self) -> str:
+        """Linux user for the process."""
+        return "root"
+
+    @property
+    @override
+    def group(self) -> str:
+        """Linux group for the process."""
+        return "root"
 
     @override
     def install(self) -> bool:
@@ -82,6 +88,14 @@ class DPBenchmarkPebbleWorkloadBase(WorkloadBase):
     def reload(self) -> bool:
         """Reloads the workload service."""
         ...
+
+    def enable(self) -> bool:
+        """Enables service."""
+        return True
+
+    def disable(self) -> bool:
+        """Disables service."""
+        return False
 
     @override
     def read(self, path: str) -> list[str]:

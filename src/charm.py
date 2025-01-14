@@ -24,7 +24,7 @@ import charms.operator_libs_linux.v0.apt as apt
 import ops
 from charms.data_platform_libs.v0.data_interfaces import KafkaRequires
 from charms.kafka.v0.client import KafkaClient, NewTopic
-from ops.charm import CharmBase
+from ops.charm import ActionEvent, CharmBase
 from ops.framework import EventBase
 from ops.model import Application, BlockedStatus, Relation, Unit
 from overrides import override
@@ -498,7 +498,7 @@ class KafkaBenchmarkActionsHandler(ActionsHandler):
         return self._preflight_checks()
 
     @override
-    def on_run_action(self, event: EventBase) -> None:
+    def on_run_action(self, event: ActionEvent) -> None:
         """Process the run action.
 
         This method avoids execution of RUN if this unit is a leader. Only non-leaders can
@@ -572,7 +572,7 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
         self.config_manager = KafkaConfigManager(
             workload=self.workload,
             database_state=self.database.state,
-            java_tls=self.java_tls_manager,
+            java_tls=self.tls_handler.tls_manager,
             peers=self.peer_handler.peers(),
             config=self.config,
             is_leader=self.unit.is_leader(),
@@ -581,13 +581,10 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
         )
 
         self.lifecycle = KafkaLifecycleManager(
-            self.peers, self.config_manager, self.unit.is_leader()
-        )
-
-        self.lifecycle = LifecycleManager(
-            self.peers.all_unit_states(),
-            self.peers.this_unit(),
-            self.config_manager,
+            peers=self.peers.all_unit_states(),
+            this_unit=self.unit,
+            config_manager=self.config_manager,
+            is_leader=self.unit.is_leader(),
         )
         self.actions = KafkaBenchmarkActionsHandler(self)
 
