@@ -132,16 +132,7 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
         self.workload.install()
         self.peers.state.lifecycle = DPBenchmarkLifecycleState.UNSET
 
-    def _on_collect_unit_status(self, _: CollectStatusEvent):
-        self.unit.status = self.lifecycle.status
-
-    def _on_update_status(self, event: EventBase | None = None) -> None:
-        """Set status for the operator and finishes the service.
-
-        First, we check if there are relations with any meaningful data. If not, then
-        this is the most important status to report. Then, we check the details of the
-        benchmark service and the benchmark status.
-        """
+    def _on_collect_unit_status(self, _: CollectStatusEvent | None = None) -> None:
         try:
             status = self.database.state.model()
         except DPBenchmarkMissingOptionsError as e:
@@ -150,10 +141,18 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
         if not status:
             self.unit.status = BlockedStatus("No database relation available")
             return
-
         # Now, let's check if we need to update our lifecycle position
         self.update_state()
         self.unit.status = self.lifecycle.status
+
+    def _on_update_status(self, _: EventBase | None = None) -> None:
+        """Set status for the operator and finishes the service.
+
+        First, we check if there are relations with any meaningful data. If not, then
+        this is the most important status to report. Then, we check the details of the
+        benchmark service and the benchmark status.
+        """
+        self._on_collect_unit_status()
 
     def _on_config_changed(self, event: EventBase) -> None:
         """Config changed event."""

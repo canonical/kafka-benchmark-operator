@@ -491,7 +491,10 @@ class KafkaBenchmarkActionsHandler(ActionsHandler):
 
         In kafka case, we need the client relation to be able to connect to the database.
         """
-        if int(self.config.parallel_processes) * len(self.charm.peers.all_unit_states().keys()) < 2:
+        if (
+            int(self.config.parallel_processes) * len(self.charm.peers.all_unit_states().keys())
+            < 2
+        ):
             logger.error("The number of parallel processes must be greater than 1.")
             self.unit.status = BlockedStatus(
                 "The number of parallel processes must be greater than 1."
