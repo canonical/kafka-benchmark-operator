@@ -23,7 +23,7 @@ jobs:
     uses: canonical/data-platform-workflows/.github/workflows/build_charm.yaml@v26.0.0
     with:
       charmcraft-snap-channel: latest/beta/data-platform  # TODO: remove after charmcraft 3.3 stable release
-      cache: false
+      cache: false  # TODO: change this to true once we are in charmcraftcache-hub
 
   release:
     name: Release to Charmhub
