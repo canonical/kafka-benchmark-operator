@@ -22,13 +22,13 @@ class WorkloadTemplatePaths(ABC):
 
     @property
     @abstractmethod
-    def service(self) -> str | None:
+    def service(self) -> str:
         """The optional path to the service file managing the python wrapper."""
         ...
 
     @property
     @abstractmethod
-    def service_template(self) -> str | None:
+    def service_template(self) -> str:
         """The path to the service template file."""
         ...
 

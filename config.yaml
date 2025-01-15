@@ -7,7 +7,7 @@ options:
       It is the string that represents the given test (e.g. "aws_c6a.xlarge_3nodes_<WORKLOAD>").
       It is used by the collector to put the final data on the right place.
   parallel_processes:
-    default: 2
+    default: 1
     type: int
     description: |
       Number of parallel process managed by the benchmark tool. Minimum is 2.
@@ -45,8 +45,4 @@ options:
     type: int
     description: |
       Int, number of seconds we should periodically report interval
-  workload_profile:
-    default: "default"
-    type: string
-    description: |
-      The workload profile to be used.
+
