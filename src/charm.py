@@ -212,6 +212,7 @@ class KafkaDatabaseRelationHandler(DatabaseRelationHandler):
                 self.charm.app,
                 None,
             )
+
         return KafkaDatabaseState(
             self.charm.app,
             self.relation,
@@ -259,14 +260,14 @@ class KafkaConfigManager(ConfigManager):
         self,
         workload: WorkloadBase,
         database_state: DatabaseState,
+        peer_state: PeerState,
         java_tls: JavaTlsStoreManager,
         peers: list[str],
         config: BenchmarkCharmConfig,
         is_leader: bool,
-        test_name: str,
         labels: str = "",
     ):
-        super().__init__(workload, database_state, peers, config, labels, test_name)
+        super().__init__(workload, database_state, peer_state, peers, config, labels, is_leader)
         self.worker_params_template = KAFKA_WORKER_PARAMS_TEMPLATE
         self.java_tls = java_tls
         self.is_leader = is_leader
@@ -428,6 +429,9 @@ class KafkaConfigManager(ConfigManager):
     @override
     def clean(self) -> bool:
         """Clean the benchmark service."""
+        if not self.is_leader:
+            return super().clean()
+        # Only applicable for the leader unit
         try:
             if model := self.database_state.model():
                 self.client.delete_topics([model.db_name])
@@ -441,6 +445,11 @@ class KafkaConfigManager(ConfigManager):
     @override
     def is_cleaned(self) -> bool:
         """Checks if the benchmark service has passed its "prepare" status."""
+        if not self.is_leader:
+            # For a non leader unit, it cannot access kafka as the fetch_relation_data does not return credentials
+            # Therefore, for these units, we use the standard check
+            return super().is_cleaned()
+
         try:
             if not (model := self.database_state.model()):
                 return False
@@ -570,18 +579,18 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
             self,
             CLIENT_RELATION_NAME,
         )
-        self.peer_handler = KafkaPeersRelationHandler(self, PEER_RELATION)
+        self.peers = KafkaPeersRelationHandler(self, PEER_RELATION)
         self.tls_handler = JavaTlsHandler(self)
 
         self.config_manager = KafkaConfigManager(
             workload=self.workload,
             database_state=self.database.state,
             java_tls=self.tls_handler.tls_manager,
-            peers=self.peer_handler.peers(),
+            peer_state=self.peers.state,
+            peers=self.peers.peers(),
             config=self.config,
             is_leader=self.unit.is_leader(),
             labels=self.labels,
-            test_name=self.peers.test_name or "",
         )
 
         self.lifecycle = KafkaLifecycleManager(

@@ -28,7 +28,7 @@ class PeerRelationHandler(Object):
         self.charm = charm
         self.relation = self.charm.model.get_relation(relation_name)
         self.relation_name = relation_name
-        self.state = PeerState(self.charm.unit, self.relation)
+        self.state = PeerState(self.charm.unit, self.relation, self.relation.app)
         self.framework.observe(
             self.charm.on[self.relation_name].relation_changed,
             self._on_peer_changed,
@@ -86,6 +86,7 @@ class PeerRelationHandler(Object):
             component=unit,
             relation=self.relation,
             scope=Scope.UNIT,
+            peer_app=self.relation.app,
         )
 
     def app_state(self) -> PeerState:
@@ -94,6 +95,7 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
+            peer_app=self.relation.app,
         )
 
     @property
@@ -106,6 +108,7 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
+            peer_app=self.relation.app,
         ).test_name
 
     @test_name.setter
@@ -115,6 +118,7 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
+            peer_app=self.relation.app,
         )
         state.test_name = name
 

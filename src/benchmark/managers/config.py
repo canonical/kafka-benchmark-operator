@@ -9,6 +9,7 @@ and returns a model containing that information.
 
 import logging
 import os
+import time
 from abc import abstractmethod
 from typing import Any, Optional
 
@@ -18,6 +19,7 @@ from pydantic import ValidationError
 from benchmark.core.models import (
     DatabaseState,
     DPBenchmarkWrapperOptionsModel,
+    PeerState,
 )
 from benchmark.core.structured_config import BenchmarkCharmConfig
 from benchmark.core.workload_base import WorkloadBase
@@ -34,17 +36,19 @@ class ConfigManager:
         self,
         workload: WorkloadBase,
         database_state: DatabaseState,
+        peer_state: PeerState,
         peers: list[str],
         config: BenchmarkCharmConfig,
         labels: str,
-        test_name: str,
+        is_leader: bool,
     ):
         self.workload = workload
         self.config = config
+        self.peer_state = peer_state
         self.peers = peers
         self.database_state = database_state
         self.labels = labels
-        self.test_name = test_name
+        self.is_leader = is_leader
 
     @abstractmethod
     def get_workload_params(self) -> dict[str, Any]:
@@ -58,14 +62,16 @@ class ConfigManager:
             self.workload.remove(self.workload.paths.service)
             self.workload.reload()
 
+            if self.is_leader:
+                self.peer_state.test_name = None
+
         except Exception as e:
             logger.info(f"Error deleting topic: {e}")
         return self.is_cleaned()
 
-    @abstractmethod
     def is_cleaned(self) -> bool:
         """Checks if the benchmark service has passed its "prepare" status."""
-        ...
+        return self.peer_state.test_name is not None
 
     def get_execution_options(
         self,
@@ -81,7 +87,7 @@ class ConfigManager:
             return None
         try:
             return DPBenchmarkWrapperOptionsModel(
-                test_name=self.test_name,
+                test_name=self.peer_state.test_name or "",
                 parallel_processes=self.config.parallel_processes,
                 threads=self.config.threads,
                 duration=self.config.duration,
@@ -121,6 +127,11 @@ class ConfigManager:
         except Exception as e:
             logger.error(f"Failed to prepare the benchmark service: {e}")
             return False
+
+        if not self.is_leader:
+            return True
+        self.peer_state.test_name = self.config.test_name or "benchmark"
+        self.peer_state.test_name = self.peer_state.test_name + "-" + str(time.time())
         return True
 
     def is_prepared(

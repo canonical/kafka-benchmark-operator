@@ -164,6 +164,20 @@ class RelationState:
 class PeerState(RelationState):
     """State collection for the database relation."""
 
+    def __init__(
+        self,
+        component: Application | Unit,
+        relation: Relation | None,
+        peer_app: Application,
+        scope: Scope = Scope.UNIT,
+    ):
+        super().__init__(
+            component=component,
+            relation=relation,
+            scope=scope,
+        )
+        self.peer_app = peer_app
+
     @override
     def get(self, key: str | None = None, default: Any = None) -> Any:
         """Returns the value of the key."""
@@ -193,12 +207,16 @@ class PeerState(RelationState):
     @property
     def test_name(self) -> str | None:
         """Return the test name."""
-        return self.relation_data.get("test_name")
+        if not self.relation or self.relation.data is not None:
+            return None
+        return self.relation.data[self.peer_app].get("test_name")
 
     @test_name.setter
     def test_name(self, name: str | None) -> None:
         """Sets the test name."""
-        self.set({"test_name": name})
+        if not self.relation or self.relation.data is not None:
+            return None
+        self.relation.data[self.peer_app]["test_name"] = name
 
 
 class DatabaseState(RelationState):

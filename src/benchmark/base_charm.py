@@ -109,10 +109,11 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
         self.config_manager = ConfigManager(
             workload=self.workload,
             database_state=self.database.state,
+            peer_state=self.peers.state,
             peers=self.peers.peers(),
             config=self.config,
             labels=self.labels,
-            test_name=self.peers.test_name or "",
+            is_leader=self.unit.is_leader(),
         )
         self.lifecycle = LifecycleManager(
             self.peers.all_unit_states(),
