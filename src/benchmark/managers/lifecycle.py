@@ -108,7 +108,7 @@ class LifecycleManager:
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> DPBenchmarkLifecycleState | None:
         """Return the next lifecycle state."""
-        lifecycle_state = _LifecycleStateFactory().build(
+        lifecycle_state = _lifecycle_build(
             self,
             self.current(),
         )
@@ -389,32 +389,24 @@ class _UnsetLifecycleState(_LifecycleState):
         return None
 
 
-class _LifecycleStateFactory:
-    """The lifecycle state factory."""
-
-    def build(
-        self, manager: LifecycleManager, state: DPBenchmarkLifecycleState
-    ) -> _LifecycleState:
-        """Build the lifecycle state."""
-        if state == DPBenchmarkLifecycleState.UNSET:
+def _lifecycle_build(
+    manager: LifecycleManager, state: DPBenchmarkLifecycleState
+) -> _LifecycleState:
+    """Build the lifecycle state."""
+    match state:
+        case DPBenchmarkLifecycleState.UNSET:
             return _UnsetLifecycleState(manager)
-
-        if state == DPBenchmarkLifecycleState.PREPARING:
+        case DPBenchmarkLifecycleState.PREPARING:
             return _PreparingLifecycleState(manager)
-
-        if state == DPBenchmarkLifecycleState.AVAILABLE:
+        case DPBenchmarkLifecycleState.AVAILABLE:
             return _AvailableLifecycleState(manager)
-
-        if state == DPBenchmarkLifecycleState.RUNNING:
+        case DPBenchmarkLifecycleState.RUNNING:
             return _RunningLifecycleState(manager)
-
-        if state == DPBenchmarkLifecycleState.FAILED:
+        case DPBenchmarkLifecycleState.FAILED:
             return _FailedLifecycleState(manager)
-
-        if state == DPBenchmarkLifecycleState.FINISHED:
+        case DPBenchmarkLifecycleState.FINISHED:
             return _FinishedLifecycleState(manager)
-
-        if state == DPBenchmarkLifecycleState.STOPPED:
+        case DPBenchmarkLifecycleState.STOPPED:
             return _StoppedLifecycleState(manager)
-
-        raise ValueError("Unknown state")
+        case _:
+            raise ValueError("Unknown state")
