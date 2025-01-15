@@ -9,11 +9,11 @@ and returns a model containing that information.
 
 import logging
 import os
-import time
 from abc import abstractmethod
 from typing import Any, Optional
 
 from jinja2 import DictLoader, Environment, FileSystemLoader, exceptions
+from pydantic import ValidationError
 
 from benchmark.core.models import (
     DatabaseState,
@@ -37,37 +37,35 @@ class ConfigManager:
         peers: list[str],
         config: BenchmarkCharmConfig,
         labels: str,
+        test_name: str,
     ):
         self.workload = workload
         self.config = config
         self.peers = peers
         self.database_state = database_state
         self.labels = labels
+        self.test_name = test_name
 
     @abstractmethod
     def get_workload_params(self) -> dict[str, Any]:
         """Return the workload parameters."""
         ...
 
-    @abstractmethod
     def clean(self) -> bool:
         """Clean the benchmark service."""
-        ...
+        try:
+            self.workload.disable()
+            self.workload.remove(self.workload.paths.service)
+            self.workload.reload()
+
+        except Exception as e:
+            logger.info(f"Error deleting topic: {e}")
+        return self.is_cleaned()
 
     @abstractmethod
     def is_cleaned(self) -> bool:
         """Checks if the benchmark service has passed its "prepare" status."""
         ...
-
-    @property
-    def _test_name(self) -> str:
-        """Return the test name."""
-        return self.config.test_name or "dpe-benchmark"
-
-    @property
-    def test_name(self) -> str:
-        """Return the test name."""
-        return self._test_name + "-" + str(int(time.time()))
 
     def get_execution_options(
         self,
@@ -81,18 +79,22 @@ class ConfigManager:
             # It means we are not yet ready. Return None
             # This check also serves to ensure we have only one valid relation at the time
             return None
-        return DPBenchmarkWrapperOptionsModel(
-            test_name=self.test_name,
-            parallel_processes=self.config.parallel_processes,
-            threads=self.config.threads,
-            duration=self.config.duration,
-            run_count=self.config.run_count,
-            db_info=db,
-            workload_name=self.config.workload_name,
-            report_interval=self.config.report_interval,
-            labels=self.labels,
-            peers=",".join(self.peers),
-        )
+        try:
+            return DPBenchmarkWrapperOptionsModel(
+                test_name=self.test_name,
+                parallel_processes=self.config.parallel_processes,
+                threads=self.config.threads,
+                duration=self.config.duration,
+                run_count=self.config.run_count,
+                db_info=db,
+                workload_name=self.config.workload_name,
+                report_interval=self.config.report_interval,
+                labels=self.labels,
+                peers=",".join(self.peers),
+            )
+        except ValidationError:
+            # Missing options
+            return None
 
     def is_collecting(self) -> bool:
         """Check if the workload is collecting data."""
@@ -214,7 +216,7 @@ class ConfigManager:
         ):
             return False
         values = values.dict() | {
-            "charm_root": os.environ.get("CHARM_DIR", ""),
+            "charm_root": self.workload.paths.charm_dir,
             "command": transition.value,
             "target_hosts": values.db_info.hosts,
         }

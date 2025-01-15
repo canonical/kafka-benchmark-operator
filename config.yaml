@@ -1,6 +1,6 @@
 options:
   test_name:
-    default: ""
+    default: "kafka-benchmark"
     type: string
     description: |
       Used to identify the test. MUST NOT be empty.

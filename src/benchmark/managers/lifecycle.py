@@ -38,6 +38,8 @@ class LifecycleManager:
 
     def current(self) -> DPBenchmarkLifecycleState:
         """Return the current lifecycle state."""
+        if not self.peers:
+            return DPBenchmarkLifecycleState.UNSET
         return self.peers[self.this_unit].lifecycle or DPBenchmarkLifecycleState.UNSET
 
     def make_transition(self, new_state: DPBenchmarkLifecycleState) -> bool:  # noqa: C901
@@ -131,6 +133,9 @@ class LifecycleManager:
         That happens if all the peers are set as state value.
         """
         for unit in self.peers.keys():
+            if unit == self.this_unit:
+                # we check peers, not the unit itself
+                continue
             if state != self.peers[unit].lifecycle:
                 return False
         return True
