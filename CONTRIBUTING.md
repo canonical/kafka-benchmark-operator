@@ -28,7 +28,6 @@ tox                      # runs 'format', 'lint', 'static', and 'unit' environme
 Build the charm in this git repository using:
 
 ```shell
-charmcraftcache pack
+charmcraft pack
 ```
 
-<!-- You may want to include any contribution/style guidelines in this document>
