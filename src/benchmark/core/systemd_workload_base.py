@@ -33,7 +33,7 @@ class DPBenchmarkSystemdTemplatePaths(WorkloadTemplatePaths):
 
     @property
     @override
-    def service(self) -> str:
+    def service(self) -> str | None:
         """The optional path to the service file managing the script."""
         return f"/etc/systemd/system/{self.svc_name}.service"
 
@@ -52,7 +52,6 @@ class DPBenchmarkSystemdTemplatePaths(WorkloadTemplatePaths):
         return "/root/.benchmark/charmed_parameters/" + self.svc_name + ".json"
 
     @property
-    @override
     def results(self) -> str:
         """The path to the results folder."""
         return "/root/.benchmark/charmed_parameters/results/"
@@ -99,7 +98,7 @@ class DPBenchmarkSystemdWorkloadBase(WorkloadBase):
     @override
     def reload(self) -> bool:
         """Reloads the script."""
-        return daemon_reload()
+        daemon_reload()
 
     @override
     def read(self, path: str) -> list[str]:
@@ -143,7 +142,7 @@ class DPBenchmarkSystemdWorkloadBase(WorkloadBase):
             )
         except subprocess.CalledProcessError:
             return None
-        return output.stdout.decode() if output.stdout else None
+        return output or ""
 
     @override
     def is_active(self) -> bool:

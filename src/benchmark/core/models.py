@@ -11,12 +11,13 @@ as changes in the configuration.
 import logging
 from typing import Any, Optional
 
-from ops.model import Application, Relation, RelationDataContent, Unit
+from ops.model import Application, Relation, Unit
 from overrides import override
 from pydantic import BaseModel, error_wrappers, root_validator
 
 from benchmark.literals import (
     LIFECYCLE_KEY,
+    STOP_KEY,
     DPBenchmarkLifecycleState,
     DPBenchmarkMissingOptionsError,
     Scope,
@@ -105,6 +106,7 @@ class DPBenchmarkWrapperOptionsModel(BaseModel):
     workload_name: str
     db_info: DPBenchmarkBaseDatabaseModel
     report_interval: int
+    workload_profile: str
     labels: str
     peers: str | None = None
 
@@ -123,18 +125,20 @@ class RelationState:
         self.scope = scope
 
     @property
-    def relation_data(self) -> RelationDataContent | dict[Any, Any]:
+    def relation_data(self) -> dict[str, str]:
         """Returns the relation data."""
         if self.relation:
             return self.relation.data[self.component]
         return {}
 
     @property
-    def remote_data(self) -> RelationDataContent | dict[Any, Any]:
+    def remote_data(self) -> dict[str, str]:
         """Returns the remote relation data."""
-        if not self.relation or self.scope != Scope.APP:
+        if not self.relation:
             return {}
-        return self.relation.data[self.relation.app]
+        if self.scope == Scope.APP:
+            return self.relation.data[self.relation.app]
+        return self.relation.data[self.relation.unit]
 
     def __bool__(self) -> bool:
         """Boolean evaluation based on the existence of self.relation."""
@@ -187,6 +191,16 @@ class PeerState(RelationState):
         else:
             self.set({LIFECYCLE_KEY: status})
 
+    @property
+    def stop(self) -> bool:
+        """Returns the value of the stop key."""
+        return self.relation_data.get(STOP_KEY, False)
+
+    @stop.setter
+    def stop(self, switch: bool) -> bool:
+        """Toggles the stop key value."""
+        self.set({STOP_KEY: switch})
+
 
 class DatabaseState(RelationState):
     """State collection for the database relation."""
@@ -222,7 +236,7 @@ class DatabaseState(RelationState):
             return None
         return tls_ca
 
-    def model(self) -> DPBenchmarkBaseDatabaseModel | None:
+    def get(self) -> DPBenchmarkBaseDatabaseModel | None:
         """Returns the value of the key."""
         if not self.relation or not (endpoints := self.remote_data.get("endpoints")):
             return None
@@ -234,9 +248,9 @@ class DatabaseState(RelationState):
             return DPBenchmarkBaseDatabaseModel(
                 hosts=endpoints.split(),
                 unix_socket=unix_socket,
-                username=self.data.get("username", ""),
-                password=self.data.get("password", ""),
-                db_name=self.remote_data.get(self.database_key, ""),
+                username=self.data.get("username"),
+                password=self.data.get("password"),
+                db_name=self.remote_data.get(self.database_key),
                 tls=self.tls,
                 tls_ca=self.tls_ca,
             )

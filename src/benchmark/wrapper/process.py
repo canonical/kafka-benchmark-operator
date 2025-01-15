@@ -70,12 +70,10 @@ class BenchmarkProcess:
             cwd=self.model.cwd,
         )
         # Now, let's make stdout a non-blocking file
-        if self._proc:
-            if self._proc.stdout:
-                os.set_blocking(self._proc.stdout.fileno(), False)
+        os.set_blocking(self._proc.stdout.fileno(), False)
 
-            self.model.pid = self._proc.pid
-            self.model.status = ProcessStatus.RUNNING
+        self.model.pid = self._proc.pid
+        self.model.status = ProcessStatus.RUNNING
 
     def status(self) -> ProcessStatus:
         """Return the status of the process."""
@@ -88,9 +86,7 @@ class BenchmarkProcess:
             stat = ProcessStatus.RUNNING
         elif self._proc.returncode != 0:
             stat = ProcessStatus.ERROR
-
-        if self.model:
-            self.model.status = stat
+        self.model.status = stat
         return stat
 
     async def process(
@@ -108,7 +104,7 @@ class BenchmarkProcess:
             or (self.status() == ProcessStatus.RUNNING and self.args.duration == 0)
         ):
             to_wait = True
-            if self._proc and self._proc.stdout:
+            if self._proc:
                 for line in iter(self._proc.stdout.readline, ""):
                     if output := self.process_line(line):
                         self.metrics.add(output)
@@ -144,8 +140,7 @@ class BenchmarkProcess:
                 self._proc.kill()
         except Exception as e:
             logger.warning(f"Error stopping worker: {e}")
-        if self.model:
-            self.model.status = ProcessStatus.STOPPED
+        self.model.status = ProcessStatus.STOPPED
 
     @abstractmethod
     def process_line(self, line: str) -> BaseModel | None:
@@ -207,15 +202,11 @@ class WorkloadToProcessMapping(ABC):
         self.manager = None
         self.metrics = metrics
 
-    def status(self) -> ProcessStatus | None:
+    def status(self) -> ProcessStatus:
         """Return the status of the benchmark."""
-        if self.manager:
-            return self.manager.status()
-        return None
+        return self.manager.status()
 
-    def map(
-        self, cmd: BenchmarkCommand
-    ) -> tuple[BenchmarkManager | None, list[BenchmarkProcess] | None]:
+    def map(self, cmd: BenchmarkCommand) -> tuple[BenchmarkManager, list[BenchmarkProcess]]:
         """Processes high-level arguments into the benchmark manager and workers.
 
         Returns all the processes that will be running the benchmark.

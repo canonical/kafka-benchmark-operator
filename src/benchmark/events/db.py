@@ -9,13 +9,11 @@ as changes in the configuration.
 """
 
 import logging
-from abc import abstractmethod
 
 from charms.data_platform_libs.v0.data_interfaces import DatabaseRequires
 from ops.charm import CharmBase, CharmEvents
 from ops.framework import EventBase, EventSource
 
-from benchmark.core.models import DatabaseState
 from benchmark.events.handler import RelationHandler
 from benchmark.literals import DPBenchmarkMissingOptionsError
 
@@ -39,7 +37,7 @@ class DatabaseRelationHandler(RelationHandler):
     well as the current relation status.
     """
 
-    on = DatabaseHandlerEvents()  # pyright: ignore [reportAssignmentType]
+    on = DatabaseHandlerEvents()  # pyright: ignore [reportGeneralTypeIssues]
 
     def __init__(
         self,
@@ -60,10 +58,48 @@ class DatabaseRelationHandler(RelationHandler):
             self.charm.on[self.relation_name].relation_broken, self._on_endpoints_changed
         )
 
-    def _on_endpoints_changed(self, _: EventBase) -> None:
+    # @property
+    # def username(self) -> str|None:
+    #     """Returns the username to connect to the database."""
+    #     return (self._secret_user or {}).get("username")
+
+    # @property
+    # def password(self) -> str|None:
+    #     """Returns the password to connect to the database."""
+    #     return (self._secret_user or {}).get("password")
+
+    # @property
+    # def tls(self) -> str|None:
+    #     """Returns the TLS to connect to the database."""
+    #     tls = (self._secret_tls or {}).get("tls")
+    #     if not tls or tls == "disabled":
+    #         return None
+    #     return tls
+
+    # @property
+    # def tls_ca(self) -> str|None:
+    #     """Returns the TLS CA to connect to the database."""
+    #     tls_ca = (self._secret_user or {}).get("tls_ca")
+    #     if not tls_ca or tls_ca == "disabled":
+    #         return None
+    #     return tls_ca
+
+    # @property
+    # def _secret_user(self) -> dict[str, str]|None:
+    #     if not (secret_id := self.client.fetch_relation_data()[self.relation.id].get("secret-user")):
+    #         return None
+    #     return self.charm.framework.model.get_secret(id=secret_id).get_content()
+
+    # @property
+    # def _secret_tls(self) -> dict[str, str]|None:
+    #     if not (secret_id := self.client.fetch_relation_data()[self.relation.id].get("secret-tls")):
+    #         return None
+    #     return self.charm.framework.model.get_secret(id=secret_id).get_content()
+
+    def _on_endpoints_changed(self, event: EventBase) -> None:
         """Handles the endpoints_changed event."""
         try:
-            if self.state.model():
+            if self.state.get():
                 self.on.db_config_update.emit()
         except DPBenchmarkMissingOptionsError as e:
             logger.warning(f"Missing options: {e}")
@@ -72,10 +108,4 @@ class DatabaseRelationHandler(RelationHandler):
     @property
     def client(self) -> DatabaseRequires:
         """Returns the data_interfaces client corresponding to the database."""
-        ...
-
-    @property
-    @abstractmethod
-    def state(self) -> DatabaseState:
-        """Returns the state of the database."""
         ...

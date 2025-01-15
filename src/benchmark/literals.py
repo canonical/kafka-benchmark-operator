@@ -10,6 +10,7 @@ VALID_LOG_LEVELS = ["info", "debug", "warning", "error", "critical"]
 
 # Peer relation keys
 LIFECYCLE_KEY = "lifecycle"
+STOP_KEY = "stop"
 
 
 class Substrate(str, Enum):
