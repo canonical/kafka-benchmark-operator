@@ -204,9 +204,7 @@ class KafkaDatabaseRelationHandler(DatabaseRelationHandler):
     @override
     def state(self) -> KafkaDatabaseState:
         """Returns the state of the database."""
-        if not (
-            self.relation and self.client and self.relation.id in self.client.fetch_relation_data()
-        ):
+        if not (self.relation and self.client):
             logger.error("Relation data not found")
             # We may have an error if the relation is gone but self.relation.id still exists
             # or if the relation is not found in the fetch_relation_data yet
@@ -217,7 +215,7 @@ class KafkaDatabaseRelationHandler(DatabaseRelationHandler):
         return KafkaDatabaseState(
             self.charm.app,
             self.relation,
-            data=self.client.fetch_relation_data()[self.relation.id] | {},
+            data=self.client.fetch_relation_data().get(self.relation.id, {}),
         )
 
     @property
@@ -334,7 +332,7 @@ class KafkaConfigManager(ConfigManager):
         if not (db := self.database_state.model()):
             return {}
         return {
-            "total_number_of_brokers": len(self.peers) + 1,
+            "total_number_of_brokers": len(self.peers) - 1,
             # We cannot have quotes nor brackets in this string.
             # Therefore, we render the entire line instead
             "list_of_brokers_bootstrap": "bootstrap.servers={}".format(
@@ -560,11 +558,10 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
     """Charm the service."""
 
     config_type = KafkaBenchmarkCharmConfig
+    workload_params_template = KAFKA_WORKLOAD_PARAMS_TEMPLATE
 
     def __init__(self, *args):
         super().__init__(*args, db_relation_name=CLIENT_RELATION_NAME)
-
-        self.workload_params_template = KAFKA_WORKLOAD_PARAMS_TEMPLATE
         self.labels = ",".join([self.model.name, self.unit.name.replace("/", "-")])
 
         self.database = KafkaDatabaseRelationHandler(

@@ -133,6 +133,9 @@ class LifecycleManager:
         That happens if all the peers are set as state value.
         """
         for unit in self.peers.keys():
+            if unit == self.this_unit:
+                # we check peers, not the unit itself
+                continue
             if state != self.peers[unit].lifecycle:
                 return False
         return True
