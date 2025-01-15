@@ -402,7 +402,7 @@ class KafkaConfigManager(ConfigManager):
             if model := self.database_state.model():
                 topic = NewTopic(
                     name=model.db_name,
-                    num_partitions=self.config.threads * self.config.parallel_processes,
+                    num_partitions=self.config.parallel_processes * (len(self.peers) + 1),
                     replication_factor=self.client.replication_factor,
                 )
                 self.client.create_topic(topic)
@@ -464,6 +464,8 @@ class KafkaConfigManager(ConfigManager):
                 security_protocol="SASL_PLAINTEXT",
                 replication_factor=1,
             )
+
+        host_count = len(state.hosts) if state.hosts else 1
         return KafkaClient(
             servers=state.hosts or [],
             username=state.username,
@@ -471,7 +473,7 @@ class KafkaConfigManager(ConfigManager):
             security_protocol="SASL_SSL" if has_tls_ca else "SASL_PLAINTEXT",
             cafile_path=self.java_tls.java_paths.ca,
             certfile_path=None,
-            replication_factor=len(self.peers) - 1,
+            replication_factor=host_count - 1,
         )
 
 
