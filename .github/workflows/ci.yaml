@@ -1,0 +1,68 @@
+# Copyright 2025 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: Tests
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+  schedule:
+    - cron: "53 0 * * *" # Daily at 00:53 UTC
+  # Triggered on push to branch "main" by .github/workflows/release.yaml
+  workflow_call:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install tox
+        run: pipx install tox
+      - name: Run linters
+        run: tox run -e lint
+
+  unit-test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install tox
+        run: pipx install tox
+      - name: Run tests
+        run: tox run -e unit
+
+  lib-check:
+    name: Check libraries
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          # Workaround for https://github.com/canonical/charmcraft/issues/1389#issuecomment-1880921728
+          touch requirements.txt
+      - name: Check libs
+        uses: canonical/charming-actions/check-libraries@2.4.0
+        with:
+          charmcraft-channel: latest/beta/data-platform  # TODO: remove after charmcraft 3.3 stable release
+          credentials: ${{ secrets.CHARMHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          use-labels: false
+          fail-build: ${{ github.event_name == 'pull_request' }}
+
+  build:
+    name: Build charms
+    uses: canonical/data-platform-workflows/.github/workflows/build_charm.yaml@v26.0.0
+    with:
+      charmcraft-snap-channel: latest/beta/data-platform  # TODO: remove after charmcraft 3.3 stable release
+      path-to-charm-directory: .
+      cache: false  # TODO: change this to true once we are in charmcraftcache-hub
