@@ -17,6 +17,8 @@ from pydantic import BaseModel, error_wrappers, root_validator
 
 from benchmark.literals import (
     LIFECYCLE_KEY,
+    STOP_DIRECTIVE_KEY,
+    TEST_NAME_KEY,
     DPBenchmarkLifecycleState,
     DPBenchmarkMissingOptionsError,
     Scope,
@@ -209,7 +211,7 @@ class PeerState(RelationState):
         """Return the test name."""
         if not self.relation or self.relation.data is not None:
             return None
-        return self.relation.data[self.peer_app].get("test_name")
+        return self.relation.data[self.peer_app].get(TEST_NAME_KEY)
 
     @test_name.setter
     def test_name(self, name: str | None) -> None:
@@ -217,6 +219,20 @@ class PeerState(RelationState):
         if not self.relation or self.relation.data is not None:
             return None
         self.relation.data[self.peer_app]["test_name"] = name
+
+    @property
+    def stop_directive(self) -> bool | None:
+        """Return the test name."""
+        if not self.relation or self.relation.data is not None:
+            return None
+        return self.relation.data[self.peer_app].get(STOP_DIRECTIVE_KEY)
+
+    @stop_directive.setter
+    def stop_directive(self, stop: bool | None) -> None:
+        """Sets the test name."""
+        if not self.relation or self.relation.data is not None:
+            return None
+        self.relation.data[self.peer_app][STOP_DIRECTIVE_KEY] = stop
 
 
 class DatabaseState(RelationState):
