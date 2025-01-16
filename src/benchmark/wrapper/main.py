@@ -31,6 +31,7 @@ class MainWrapper:
 
         def _exit(*args, **kwargs):
             manager.stop()
+            exit(0)
 
         signal.signal(signal.SIGINT, _exit)
         signal.signal(signal.SIGTERM, _exit)

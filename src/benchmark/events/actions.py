@@ -147,5 +147,6 @@ class ActionsHandler(Object):
             return False
 
         self.lifecycle.make_transition(state)
+        self.charm.update_flags(state)
         self.unit.status = self.lifecycle.status
         return True

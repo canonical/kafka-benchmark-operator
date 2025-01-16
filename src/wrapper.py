@@ -141,7 +141,7 @@ class KafkaWorkloadToProcessMapping(WorkloadToProcessMapping):
         processes: list[BenchmarkProcess] = [
             KafkaBenchmarkProcess(
                 model=ProcessModel(
-                    cmd=f"""sudo bin/benchmark-worker -p 0.0.0.0:{port} -sp 0.0.0.0:{port + 1}""",
+                    cmd=f"""sudo bin/benchmark-worker -p {port} -sp {port + 1}""",
                     cwd=os.path.join(
                         os.path.dirname(os.path.abspath(__file__)),
                         "../openmessaging-benchmark/",
