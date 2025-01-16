@@ -28,7 +28,11 @@ class PeerRelationHandler(Object):
         self.charm = charm
         self.relation = self.charm.model.get_relation(relation_name)
         self.relation_name = relation_name
-        self.state = PeerState(self.charm.unit, self.relation, self.relation.app)
+        self.state = PeerState(
+            self.charm.unit,
+            self.relation,
+            peer_app=self.relation.app if self.relation else None,
+        )
 
         self.framework.observe(
             self.charm.on[self.relation_name].relation_changed,
@@ -86,7 +90,7 @@ class PeerRelationHandler(Object):
             component=unit,
             relation=self.relation,
             scope=Scope.UNIT,
-            peer_app=self.relation.app,
+            peer_app=self.relation.app if self.relation else None,
         )
 
     def app_state(self) -> PeerState:
@@ -95,7 +99,7 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
-            peer_app=self.relation.app,
+            peer_app=self.relation.app if self.relation else None,
         )
 
     @property
@@ -108,7 +112,7 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
-            peer_app=self.relation.app,
+            peer_app=self.relation.app if self.relation else None,
         ).test_name
 
     @test_name.setter
@@ -118,7 +122,7 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
-            peer_app=self.relation.app,
+            peer_app=self.relation.app if self.relation else None,
         )
         state.test_name = name
 
@@ -132,7 +136,7 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
-            peer_app=self.relation.app,
+            peer_app=self.relation.app if self.relation else None,
         ).stop_directive
 
     @stop_directive.setter
@@ -142,7 +146,7 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
-            peer_app=self.relation.app,
+            peer_app=self.relation.app if self.relation else None,
         )
         state.stop_directive = stop
 

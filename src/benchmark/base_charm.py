@@ -205,3 +205,13 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
         """Update the state of the charm."""
         if (next_state := self.lifecycle.next(None)) and self.lifecycle.current() != next_state:
             self.lifecycle.make_transition(next_state)
+            self.update_flags(next_state)
+
+    def update_flags(self, next_state: DPBenchmarkLifecycleState) -> None:
+        """Reset certain flags according to the state."""
+        if next_state == DPBenchmarkLifecycleState.UNSET:
+            self.peers.state.test_name = None
+        if next_state != DPBenchmarkLifecycleState.STOPPED:
+            self.peers.state.stop_directive = None
+        else:
+            self.peers.state.stop_directive = True

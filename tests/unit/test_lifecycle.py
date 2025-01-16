@@ -22,6 +22,8 @@ class TestLifecycleManager(LifecycleManager):
         super().__init__(peers, this_unit, config_manager)
         self.config_manager.workload.is_failed = MagicMock(return_value=False)
         self.config_manager.is_failed = MagicMock(return_value=False)
+        self.config_manager.peer_state.stop_directive = False
+        self.config_manager.peer_state.test_name = "test"
 
 
 class MockPeerState:
@@ -48,6 +50,7 @@ def test_next_state_clean():
 def test_next_state_stop():
     lifecycle = lifecycle_factory(DPBenchmarkLifecycleState.STOPPED)
     lifecycle.config_manager.is_running = MagicMock(return_value=False)
+
     # Check the other condition
     assert lifecycle.next(None) is None
 

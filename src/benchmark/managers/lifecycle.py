@@ -53,7 +53,7 @@ class LifecycleManager:
         """
         if new_state == DPBenchmarkLifecycleState.UNSET:
             # We stop any service right away
-            if not self.config_manager.is_stopped() and not self.config_manager.stop():
+            if self.config_manager.is_running() and not self.config_manager.stop():
                 return False
             # And clean up the workload
             if not self.config_manager.is_cleaned() and not self.config_manager.clean():
@@ -69,7 +69,7 @@ class LifecycleManager:
 
         if new_state == DPBenchmarkLifecycleState.AVAILABLE:
             # workload should be prepared, check we are stopped or stop it
-            if not self.config_manager.is_stopped() and not self.config_manager.stop():
+            if self.config_manager.is_running() and not self.config_manager.stop():
                 return False
 
         if new_state == DPBenchmarkLifecycleState.RUNNING:
@@ -101,7 +101,7 @@ class LifecycleManager:
             DPBenchmarkLifecycleState.STOPPED,
         ]:
             # Stop the workload
-            if not self.config_manager.is_stopped() and not self.config_manager.stop():
+            if self.config_manager.is_running() and not self.config_manager.stop():
                 return False
 
         self.peers[self.this_unit].lifecycle = new_state.value
@@ -236,7 +236,7 @@ class _LifecycleStateBase(_LifecycleState):
 
         if transition == DPBenchmarkLifecycleTransition.CLEAN:
             result = _UnsetLifecycleState(self.manager)
-        return result if type(result) is type(self.state) else None
+        return result if type(result) is not type(self) else None
 
 
 class _StoppedLifecycleState(_LifecycleStateBase):

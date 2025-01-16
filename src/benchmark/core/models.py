@@ -170,7 +170,7 @@ class PeerState(RelationState):
         self,
         component: Application | Unit,
         relation: Relation | None,
-        peer_app: Application,
+        peer_app: Application | None,
         scope: Scope = Scope.UNIT,
     ):
         super().__init__(
@@ -209,30 +209,43 @@ class PeerState(RelationState):
     @property
     def test_name(self) -> str | None:
         """Return the test name."""
-        if not self.relation or self.relation.data is not None:
+        if not self.relation or not self.relation.data or not self.peer_app:
             return None
         return self.relation.data[self.peer_app].get(TEST_NAME_KEY)
 
     @test_name.setter
-    def test_name(self, name: str | None) -> None:
+    def test_name(self, value: str | None) -> None:
         """Sets the test name."""
-        if not self.relation or self.relation.data is not None:
-            return None
-        self.relation.data[self.peer_app]["test_name"] = name
+        if not self.relation or not self.relation.data or not self.peer_app:
+            return
+
+        if not value and TEST_NAME_KEY in self.relation.data[self.peer_app]:
+            del self.relation.data[self.peer_app][TEST_NAME_KEY]
+            return
+
+        # The empty value makes no sense but pyright was not accepting value: str | None
+        # to be assigned to the dict below.
+        self.relation.data[self.peer_app][TEST_NAME_KEY] = value or ""
 
     @property
     def stop_directive(self) -> bool | None:
         """Return the test name."""
-        if not self.relation or self.relation.data is not None:
+        if not self.relation or not self.relation.data or not self.peer_app:
             return None
-        return self.relation.data[self.peer_app].get(STOP_DIRECTIVE_KEY)
+        if self.relation.data[self.peer_app].get(STOP_DIRECTIVE_KEY):
+            return True
+        return False
 
     @stop_directive.setter
     def stop_directive(self, stop: bool | None) -> None:
         """Sets the test name."""
-        if not self.relation or self.relation.data is not None:
+        if not self.relation or not self.relation.data or not self.peer_app:
             return None
-        self.relation.data[self.peer_app][STOP_DIRECTIVE_KEY] = stop
+
+        if not stop and STOP_DIRECTIVE_KEY in self.relation.data[self.peer_app]:
+            del self.relation.data[self.peer_app][STOP_DIRECTIVE_KEY]
+            return
+        self.relation.data[self.peer_app][STOP_DIRECTIVE_KEY] = str(stop)
 
 
 class DatabaseState(RelationState):
