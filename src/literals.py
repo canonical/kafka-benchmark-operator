@@ -11,9 +11,12 @@ CLIENT_RELATION_NAME = "kafka"
 
 JAVA_VERSION = "18"
 
-METRICS_PORT = 8088
 COS_AGENT_RELATION = "cos-agent"
 PEER_RELATION = "benchmark-peer"
+
+# PORT constants, used by the benchmark tool to prepare the workers
+INITIAL_PORT = 8080
+PORT_JUMP = 2
 
 # TODO: This file must go away once Kafka starts sharing its certificates via client relation
 TRUSTED_CA_RELATION = "trusted-ca"

@@ -47,7 +47,7 @@ from benchmark.literals import (
 )
 from benchmark.managers.config import ConfigManager
 from benchmark.managers.lifecycle import LifecycleManager
-from literals import CLIENT_RELATION_NAME, JAVA_VERSION, TOPIC_NAME
+from literals import CLIENT_RELATION_NAME, INITIAL_PORT, JAVA_VERSION, PORT_JUMP, TOPIC_NAME
 from models import KafkaBenchmarkCharmConfig, WorkloadTypeParameters
 
 # TODO: This file must go away once Kafka starts sharing its certificates via client relation
@@ -247,9 +247,13 @@ class KafkaPeersRelationHandler(PeerRelationHandler):
         if not self.relation:
             return []
         return [
-            f"{self.relation.data[u]['ingress-address']}:{8080 + 2 * port}"
+            f"{self.relation.data[u]['ingress-address']}:{port}"
             for u in list(self.units()) + [self.this_unit()]
-            for port in range(0, self.charm.config.parallel_processes)
+            for port in range(
+                INITIAL_PORT,
+                INITIAL_PORT + PORT_JUMP * self.charm.config.parallel_processes,
+                PORT_JUMP,
+            )
         ]
 
 
