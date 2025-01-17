@@ -55,7 +55,6 @@ def test_next_state_stop():
     lifecycle.config_manager.is_running = MagicMock(return_value=True)
     assert lifecycle.next(None) == DPBenchmarkLifecycleState.RUNNING
 
-
 def test_next_state_prepare():
     lifecycle = lifecycle_factory(DPBenchmarkLifecycleState.UNSET)
     assert (
