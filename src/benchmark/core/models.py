@@ -147,7 +147,7 @@ class RelationState:
         """Returns the value of the key."""
         ...
 
-    def set(self, items: dict[str, str]) -> None:
+    def set(self, items: dict[str, str | None]) -> None:
         """Writes to relation_data."""
         if not self.relation:
             return
@@ -164,9 +164,26 @@ class RelationState:
 class PeerState(RelationState):
     """State collection for the database relation."""
 
+    def __init__(
+        self,
+        component: Application | Unit,
+        relation: Relation | None,
+        peer_app: Application,
+        scope: Scope = Scope.UNIT,
+    ):
+        super().__init__(
+            component=component,
+            relation=relation,
+            scope=scope,
+        )
+        self.peer_app = peer_app
+
     @override
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str | None = None, default: Any = None) -> Any:
         """Returns the value of the key."""
+        if not key:
+            return self.relation_data
+
         return self.relation_data.get(
             key,
             default,
@@ -186,6 +203,20 @@ class PeerState(RelationState):
             self.set({LIFECYCLE_KEY: status.value})
         else:
             self.set({LIFECYCLE_KEY: status})
+
+    @property
+    def test_name(self) -> str | None:
+        """Return the test name."""
+        if not self.relation or self.relation.data is not None:
+            return None
+        return self.relation.data[self.peer_app].get("test_name")
+
+    @test_name.setter
+    def test_name(self, name: str | None) -> None:
+        """Sets the test name."""
+        if not self.relation or self.relation.data is not None:
+            return None
+        self.relation.data[self.peer_app]["test_name"] = name
 
 
 class DatabaseState(RelationState):

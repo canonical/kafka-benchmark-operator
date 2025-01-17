@@ -38,6 +38,8 @@ class LifecycleManager:
 
     def current(self) -> DPBenchmarkLifecycleState:
         """Return the current lifecycle state."""
+        if not self.peers:
+            return DPBenchmarkLifecycleState.UNSET
         return self.peers[self.this_unit].lifecycle or DPBenchmarkLifecycleState.UNSET
 
     def make_transition(self, new_state: DPBenchmarkLifecycleState) -> bool:  # noqa: C901
@@ -108,7 +110,7 @@ class LifecycleManager:
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> DPBenchmarkLifecycleState | None:
         """Return the next lifecycle state."""
-        lifecycle_state = _lifecycle_build(
+        lifecycle_state = _LifecycleStateFactory().build(
             self,
             self.current(),
         )
@@ -131,6 +133,9 @@ class LifecycleManager:
         That happens if all the peers are set as state value.
         """
         for unit in self.peers.keys():
+            if unit == self.this_unit:
+                # we check peers, not the unit itself
+                continue
             if state != self.peers[unit].lifecycle:
                 return False
         return True
@@ -389,24 +394,32 @@ class _UnsetLifecycleState(_LifecycleState):
         return None
 
 
-def _lifecycle_build(
-    manager: LifecycleManager, state: DPBenchmarkLifecycleState
-) -> _LifecycleState:
-    """Build the lifecycle state."""
-    match state:
-        case DPBenchmarkLifecycleState.UNSET:
+class _LifecycleStateFactory:
+    """The lifecycle state factory."""
+
+    def build(
+        self, manager: LifecycleManager, state: DPBenchmarkLifecycleState
+    ) -> _LifecycleState:
+        """Build the lifecycle state."""
+        if state == DPBenchmarkLifecycleState.UNSET:
             return _UnsetLifecycleState(manager)
-        case DPBenchmarkLifecycleState.PREPARING:
+
+        if state == DPBenchmarkLifecycleState.PREPARING:
             return _PreparingLifecycleState(manager)
-        case DPBenchmarkLifecycleState.AVAILABLE:
+
+        if state == DPBenchmarkLifecycleState.AVAILABLE:
             return _AvailableLifecycleState(manager)
-        case DPBenchmarkLifecycleState.RUNNING:
+
+        if state == DPBenchmarkLifecycleState.RUNNING:
             return _RunningLifecycleState(manager)
-        case DPBenchmarkLifecycleState.FAILED:
+
+        if state == DPBenchmarkLifecycleState.FAILED:
             return _FailedLifecycleState(manager)
-        case DPBenchmarkLifecycleState.FINISHED:
+
+        if state == DPBenchmarkLifecycleState.FINISHED:
             return _FinishedLifecycleState(manager)
-        case DPBenchmarkLifecycleState.STOPPED:
+
+        if state == DPBenchmarkLifecycleState.STOPPED:
             return _StoppedLifecycleState(manager)
-        case _:
-            raise ValueError("Unknown state")
+
+        raise ValueError("Unknown state")

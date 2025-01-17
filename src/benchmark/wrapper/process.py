@@ -27,9 +27,6 @@ VALID_LOG_LEVELS = ["info", "debug", "warning", "error", "critical"]
 
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    filename="/var/log/dpe_benchmark_workload.log", encoding="utf-8", level=logging.INFO
-)
 
 
 class BenchmarkProcess:
