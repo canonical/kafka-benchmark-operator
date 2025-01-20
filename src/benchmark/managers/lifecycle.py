@@ -75,17 +75,6 @@ class LifecycleManager:
                 return False
 
         if new_state == DPBenchmarkLifecycleState.RUNNING:
-            # There are two cases here: (1) we are non leader, in this case we just run.
-            # The (2) we are the leader. Then we should kickstart the run only after every
-            # peer is in the same state.
-            if (
-                self.is_leader
-                and len(self.peers) > 1
-                and not self.check_all_peers_in_state(DPBenchmarkLifecycleState.RUNNING)
-            ):
-                # We are still waiting for all peers to be running
-                return False
-
             # Start the workload
             if not self.config_manager.is_running() and not self.config_manager.run():
                 return False
@@ -265,7 +254,7 @@ class _StoppedLifecycleState(_LifecycleStateBase):
         if self.manager.config_manager.is_running():
             return _RunningLifecycleState(self.manager)
 
-        if transition == DPBenchmarkLifecycleTransition.RUN:
+        if not self.manager.config_manager.peer_state.stop_directive:
             return _RunningLifecycleState(self.manager)
 
         if self.manager.config_manager.is_failed():
@@ -347,15 +336,6 @@ class _RunningLifecycleState(_LifecycleStateBase):
             return state
 
         if transition == DPBenchmarkLifecycleTransition.STOP:
-            return _StoppedLifecycleState(self.manager)
-
-        if (peer_state := self.manager._peers_state()) and (
-            self.manager._compare_lifecycle_states(
-                peer_state,
-                DPBenchmarkLifecycleState.STOPPED,
-            )
-            == 0
-        ):
             return _StoppedLifecycleState(self.manager)
 
         if self.manager.config_manager.is_failed():

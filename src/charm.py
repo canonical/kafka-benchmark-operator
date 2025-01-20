@@ -24,7 +24,7 @@ import charms.operator_libs_linux.v0.apt as apt
 import ops
 from charms.data_platform_libs.v0.data_interfaces import KafkaRequires
 from charms.kafka.v0.client import KafkaClient, NewTopic
-from ops.charm import ActionEvent, CharmBase
+from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.model import Application, BlockedStatus, Relation, Unit
 from overrides import override
@@ -514,33 +514,6 @@ class KafkaBenchmarkActionsHandler(ActionsHandler):
             return False
         return super()._preflight_checks()
 
-    @override
-    def on_stop_action(self, event: ActionEvent) -> None:
-        """Process the stop action."""
-        if not self.unit.is_leader():
-            event.fail("Only leader can apply stop.")
-            return
-        return super().on_stop_action(event)
-
-    @override
-    def on_run_action(self, event: ActionEvent) -> None:
-        """Process the run action.
-
-        This method avoids execution of RUN if this unit is a leader. Only non-leaders can
-        kickstart the RUN logic as we need all non-leaders to be RUNNING before leader can start.
-        """
-        if not self.unit.is_leader():
-            # We should fail if we have a stop directive
-            if self.peers.state.stop_directive:
-                event.fail("Only leader can RUN as a stop was previously issued.")
-                return
-            return super().on_run_action(event)
-
-        # As the leader, we need to remove the stop directive
-        self.charm.peers.state.stop_directive = None
-
-        super().on_run_action(event)
-
 
 class KafkaLifecycleManager(LifecycleManager):
     """The lifecycle manager class.
@@ -626,6 +599,40 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
         self.actions = KafkaBenchmarkActionsHandler(self)
 
         self.framework.observe(self.database.on.db_config_update, self._on_config_changed)
+        self.framework.observe(
+            self.on[PEER_RELATION].relation_changed,
+            self._on_run_check_event,
+        )
+        self.run_check_deferred = False
+
+    def _on_run_check_event(self, event: EventBase) -> None:
+        """Restarts the leader service at RUN time.
+
+        The main challenge with this benchmark is that the leader must wait for all
+        the peers to really work. Therefore, we will monitor every change in the peers'
+        state and once all the peers move to RUN, we restart the service.
+        """
+        if not self.unit.is_leader():
+            # Only the leader processes this case
+            # Only the leader must be started at the end.
+            return
+
+        if not self.lifecycle.current() == DPBenchmarkLifecycleState.RUNNING:
+            # We only care about the running state
+            return
+
+        # We do not need to check for len(peers) > 1 case
+        # there is no peer changed in this case
+        if not self.lifecycle.check_all_peers_in_state(DPBenchmarkLifecycleState.RUNNING):
+            # Not all peers have started yet. We need to wait for them.
+            if not self.run_check_deferred:
+                event.defer()
+                self.run_check_deferred = True
+            return
+
+        # All units have started.
+        # Now we can restart the leader and finish this event
+        self.workload.restart()
 
     @override
     def _on_install(self, event: EventBase) -> None:

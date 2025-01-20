@@ -114,8 +114,17 @@ class ActionsHandler(Object):
             event.fail("Missing DB or S3 relations")
             return
 
+        if not self.unit.is_leader():
+            # We should fail if we have a stop directive
+            if self.peers.state.stop_directive:
+                event.fail("Only leader can RUN as a stop was previously issued.")
+                return
+
         if not self._process_action_transition(DPBenchmarkLifecycleTransition.RUN):
             event.fail("Failed to run the benchmark")
+
+        if self.charm.unit.is_leader():
+            self.charm.peers.state.stop_directive = None
         event.set_results({"message": "Benchmark has started"})
 
     def on_stop_action(self, event: ActionEvent) -> None:
@@ -124,8 +133,15 @@ class ActionsHandler(Object):
             event.fail("Missing DB or S3 relations")
             return
 
+        if not self.unit.is_leader():
+            event.fail("Only leader can apply stop.")
+            return
+
         if not self._process_action_transition(DPBenchmarkLifecycleTransition.STOP):
             event.fail("Failed to stop the benchmark")
+
+        if self.charm.unit.is_leader():
+            self.charm.peers.state.stop_directive = True
         event.set_results({"message": "Benchmark has stopped"})
 
     def on_clean_action(self, event: ActionEvent) -> None:
