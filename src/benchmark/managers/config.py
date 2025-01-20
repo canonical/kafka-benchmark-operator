@@ -71,7 +71,7 @@ class ConfigManager:
 
     def is_cleaned(self) -> bool:
         """Checks if the benchmark service has passed its "prepare" status."""
-        return self.peer_state.test_name is not None
+        return self.peer_state.test_name is None
 
     def get_execution_options(
         self,

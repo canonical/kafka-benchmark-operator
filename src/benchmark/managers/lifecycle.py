@@ -32,10 +32,12 @@ class LifecycleManager:
         peers: dict[Unit, PeerState],
         this_unit: Unit,
         config_manager: ConfigManager,
+        is_leader: bool,
     ):
         self.peers = peers
         self.this_unit = this_unit
         self.config_manager = config_manager
+        self.is_leader = is_leader
 
     def current(self) -> DPBenchmarkLifecycleState:
         """Return the current lifecycle state."""
@@ -73,6 +75,17 @@ class LifecycleManager:
                 return False
 
         if new_state == DPBenchmarkLifecycleState.RUNNING:
+            # There are two cases here: (1) we are non leader, in this case we just run.
+            # The (2) we are the leader. Then we should kickstart the run only after every
+            # peer is in the same state.
+            if (
+                self.is_leader
+                and len(self.peers) > 1
+                and not self.check_all_peers_in_state(DPBenchmarkLifecycleState.RUNNING)
+            ):
+                # We are still waiting for all peers to be running
+                return False
+
             # Start the workload
             if not self.config_manager.is_running() and not self.config_manager.run():
                 return False

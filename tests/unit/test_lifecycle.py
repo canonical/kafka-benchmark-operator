@@ -19,7 +19,7 @@ class TestLifecycleManager(LifecycleManager):
         this_unit: PeerState,
         config_manager: ConfigManager,
     ):
-        super().__init__(peers, this_unit, config_manager)
+        super().__init__(peers, this_unit, config_manager, is_leader=True)
         self.config_manager.workload.is_failed = MagicMock(return_value=False)
         self.config_manager.is_failed = MagicMock(return_value=False)
         self.config_manager.peer_state.stop_directive = False

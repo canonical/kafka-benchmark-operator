@@ -515,15 +515,30 @@ class KafkaBenchmarkActionsHandler(ActionsHandler):
         return super()._preflight_checks()
 
     @override
+    def on_stop_action(self, event: ActionEvent) -> None:
+        """Process the stop action."""
+        if not self.unit.is_leader():
+            event.fail("Only leader can apply stop.")
+            return
+        return super().on_stop_action(event)
+
+    @override
     def on_run_action(self, event: ActionEvent) -> None:
         """Process the run action.
 
         This method avoids execution of RUN if this unit is a leader. Only non-leaders can
         kickstart the RUN logic as we need all non-leaders to be RUNNING before leader can start.
         """
-        if self.unit.is_leader():
-            event.fail("Only non-leaders can start the benchmark")
-            return
+        if not self.unit.is_leader():
+            # We should fail if we have a stop directive
+            if self.peers.state.stop_directive:
+                event.fail("Only leader can RUN as a stop was previously issued.")
+                return
+            return super().on_run_action(event)
+
+        # As the leader, we need to remove the stop directive
+        self.charm.peers.state.stop_directive = None
+
         super().on_run_action(event)
 
 
@@ -541,12 +556,18 @@ class KafkaLifecycleManager(LifecycleManager):
         config_manager: ConfigManager,
         is_leader: bool = False,
     ):
-        super().__init__(peers, this_unit, config_manager)
+        super().__init__(peers, this_unit, config_manager, is_leader)
         self.is_leader = is_leader
 
     @override
     def _peers_state(self) -> DPBenchmarkLifecycleState | None:
         next_state = super()._peers_state()
+
+        if next_state == DPBenchmarkLifecycleState.STOPPED and not self.is_leader:
+            # If not leader, then we can only stop if the leader has issued a stop directive
+            if self.peers[self.this_unit].stop_directive:
+                return DPBenchmarkLifecycleState.STOPPED
+            return None
 
         # Now, there is a special rule: if we are the leader unit, we can only move to RUNNING
         # if all the peers are already running or if peer count is zero
