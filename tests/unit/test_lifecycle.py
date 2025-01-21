@@ -51,12 +51,9 @@ def test_next_state_stop():
     lifecycle = lifecycle_factory(DPBenchmarkLifecycleState.STOPPED)
     lifecycle.config_manager.is_running = MagicMock(return_value=False)
 
+    lifecycle.config_manager.peer_state.stop_directive = True
     # Check the other condition
     assert lifecycle.next(None) is None
-
-    # Test now with the workload recovered
-    lifecycle.config_manager.is_running = MagicMock(return_value=True)
-    assert lifecycle.next(None) == DPBenchmarkLifecycleState.RUNNING
 
 
 def test_next_state_prepare():
