@@ -214,3 +214,4 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
             return
         if state == DPBenchmarkLifecycleState.UNSET:
             self.peers.state.test_name = None
+            self.peers.state.stop_directive = None

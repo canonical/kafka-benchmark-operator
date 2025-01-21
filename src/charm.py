@@ -18,6 +18,7 @@ the user.
 import logging
 import os
 from functools import cached_property
+from math import ceil
 from typing import Any
 
 import charms.operator_libs_linux.v0.apt as apt
@@ -367,7 +368,9 @@ class KafkaConfigManager(ConfigManager):
         """Return the worker parameters."""
         workload = WorkloadTypeParameters[self.config.workload_name]
         return {
-            "partitionsPerTopic": self.config.parallel_processes,
+            "partitionsPerTopic": ceil(
+                (int(self.config.parallel_processes) * len(self.peers)) / 2
+            ),
             "duration": int(self.config.duration / 60)
             if self.config.duration > 0
             else TEN_YEARS_IN_MINUTES,
