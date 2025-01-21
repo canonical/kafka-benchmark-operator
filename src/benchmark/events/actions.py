@@ -123,8 +123,9 @@ class ActionsHandler(Object):
         if not self._process_action_transition(DPBenchmarkLifecycleTransition.RUN):
             event.fail("Failed to run the benchmark")
 
-        if self.charm.unit.is_leader():
+        if self.unit.is_leader():
             self.charm.peers.state.stop_directive = None
+
         event.set_results({"message": "Benchmark has started"})
 
     def on_stop_action(self, event: ActionEvent) -> None:
@@ -150,8 +151,13 @@ class ActionsHandler(Object):
             event.fail("Missing DB or S3 relations")
             return
 
+        if not self.peers.state.stop_directive:
+            event.fail("The application must first be stopped.")
+            return
+
         if not self._process_action_transition(DPBenchmarkLifecycleTransition.CLEAN):
             event.fail("Failed to clean the benchmark")
+            return
         event.set_results({"message": "Benchmark is cleaning"})
 
     def _process_action_transition(self, transition: DPBenchmarkLifecycleTransition) -> bool:

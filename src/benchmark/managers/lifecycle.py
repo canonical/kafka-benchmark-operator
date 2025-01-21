@@ -251,10 +251,13 @@ class _StoppedLifecycleState(_LifecycleStateBase):
         if state := super().next(transition):
             return state
 
-        if self.manager.config_manager.is_running():
+        if transition == DPBenchmarkLifecycleTransition.RUN:
             return _RunningLifecycleState(self.manager)
 
         if not self.manager.config_manager.peer_state.stop_directive:
+            return _RunningLifecycleState(self.manager)
+
+        if self.manager.config_manager.is_running():
             return _RunningLifecycleState(self.manager)
 
         if self.manager.config_manager.is_failed():
