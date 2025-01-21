@@ -51,11 +51,11 @@ async def test_deploy(ops_test: OpsTest, kafka_benchmark_charm, use_tls) -> None
             num_units=1,
             series=SERIES,
         )
-        await ops_test.model.integrate(KAFKA, "self-signed-certificates")
+        await ops_test.model.integrate(f"{KAFKA}:certificates", "self-signed-certificates")
         await ops_test.model.integrate(APP_NAME, "self-signed-certificates")
 
-    await ops_test.model.wait_for_idle(apps=[KAFKA], status="active", timeout=1000)
-    await ops_test.model.wait_for_idle(apps=[APP_NAME], status="waiting", timeout=1000)
+    await ops_test.model.wait_for_idle(apps=[KAFKA], status="active", timeout=2000)
+    await ops_test.model.wait_for_idle(apps=[APP_NAME], status="waiting", timeout=2000)
 
     assert len(ops_test.model.applications[APP_NAME].units) == DEFAULT_NUM_UNITS
 
@@ -94,6 +94,7 @@ async def test_run(ops_test: OpsTest) -> None:
         raise_on_blocked=True,
         timeout=15 * 60,
     )
+    assert check_service("dpe_benchmark", unit_id=leader_id)
 
 
 @pytest.mark.group(1)
@@ -140,13 +141,22 @@ async def test_clean(ops_test: OpsTest) -> None:
     """Build and deploy OpenSearch with a single unit and remove it."""
     leader_id = await get_leader_unit_id(ops_test)
 
+    output = await run_action(ops_test, "stop", f"{APP_NAME}/{leader_id}")
+    assert output.status == "completed"
+
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME],
+        status="waiting",
+        raise_on_blocked=True,
+        timeout=15 * 60,
+    )
+
     output = await run_action(ops_test, "cleanup", f"{APP_NAME}/{leader_id}")
     assert output.status == "completed"
 
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
-        status="active",
+        status="waiting",
         raise_on_blocked=True,
         timeout=15 * 60,
     )
-    assert check_service("dpe_benchmark", unit_id=leader_id)
