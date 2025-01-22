@@ -65,7 +65,7 @@ driverClass: io.openmessaging.benchmark.driver.kafka.KafkaBenchmarkDriver
 replicationFactor: {{ total_number_of_brokers }}
 
 topicConfig: |
-  min.insync.replicas={{ total_number_of_brokers }}
+  min.insync.replicas={{ total_number_of_brokers - 1 }}
 
 commonConfig: |
   security.protocol=SASL_PLAINTEXT
@@ -336,8 +336,9 @@ class KafkaConfigManager(ConfigManager):
         self.java_tls.set()
         if not (db := self.database_state.model()):
             return {}
+        num_brokers = len(db.hosts) if db.hosts else 0
         return {
-            "total_number_of_brokers": len(self.peers) - 1,
+            "total_number_of_brokers": num_brokers,
             # We cannot have quotes nor brackets in this string.
             # Therefore, we render the entire line instead
             "list_of_brokers_bootstrap": "bootstrap.servers={}".format(
