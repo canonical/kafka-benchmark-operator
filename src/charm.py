@@ -50,7 +50,7 @@ from benchmark.managers.lifecycle import LifecycleManager
 from literals import CLIENT_RELATION_NAME, JAVA_VERSION, TOPIC_NAME
 from models import KafkaBenchmarkCharmConfig, WorkloadTypeParameters
 
-# TODO: This file must go away once Kafka starts sharing its certificates via client relation
+# TODO: This line must go away once Kafka starts sharing its certificates via client relation
 from tls import JavaTlsHandler, JavaTlsStoreManager
 
 # Log messages can be retrieved using juju debug-log
