@@ -1,12 +1,7 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""This module abstracts the different DBs and provide a single API set.
-
-The DatabaseRelationHandler listens to DB events and manages the relation lifecycles.
-The charm interacts with the manager and requests data + listen to some key events such
-as changes in the configuration.
-"""
+"""This module handles the action events."""
 
 import logging
 
