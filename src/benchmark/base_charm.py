@@ -163,7 +163,7 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
             return
 
         if (
-            self.lifecycle.current() == DPBenchmarkLifecycleState.RUNNING
+            self.lifecycle.running
             and self.config_manager.is_running()
             and not self.config_manager.stop()
         ):
@@ -171,7 +171,7 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
             logger.warning("Config changed: tried stopping the service but returned False")
             event.defer()
             return
-        elif self.lifecycle.current() == DPBenchmarkLifecycleState.RUNNING:
+        elif self.lifecycle.running:
             self.config_manager.run()
         self._on_update_status()
 

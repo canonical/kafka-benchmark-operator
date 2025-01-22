@@ -18,6 +18,7 @@ PEER_RELATION = "benchmark-peer"
 # TODO: This file must go away once Kafka starts sharing its certificates via client relation
 TRUSTED_CA_RELATION = "trusted-ca"
 TRUSTSTORE_LABEL = "trusted-ca-truststore"
+TS_PASSWORD_KEY = "truststore-password"
 
 
 class DPBenchmarkError(Exception):

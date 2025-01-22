@@ -32,6 +32,9 @@ PEER_RELATION = "benchmark-peer"
 
 BENCHMARK_WORKLOAD_PATH = "/root/.benchmark/charmed_parameters"
 
+LINUX_USER = "root"
+LINUX_GROUP = "root"
+
 
 class DPBenchmarkError(Exception):
     """Benchmark error."""

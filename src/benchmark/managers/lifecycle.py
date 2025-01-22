@@ -141,6 +141,46 @@ class LifecycleManager:
         return True
 
     @property
+    def unset(self) -> bool:
+        """Return if the benchmark is unset."""
+        return self.current() == DPBenchmarkLifecycleState.UNSET
+
+    @property
+    def preparing(self) -> bool:
+        """Return if the benchmark is preparing."""
+        return self.current() == DPBenchmarkLifecycleState.PREPARING
+
+    @property
+    def available(self) -> bool:
+        """Return if the benchmark is available."""
+        return self.current() == DPBenchmarkLifecycleState.AVAILABLE
+
+    @property
+    def running(self) -> bool:
+        """Return if the benchmark is running."""
+        return self.current() == DPBenchmarkLifecycleState.RUNNING
+
+    @property
+    def failed(self) -> bool:
+        """Return if the benchmark is failed."""
+        return self.current() == DPBenchmarkLifecycleState.FAILED
+
+    @property
+    def collecting(self) -> bool:
+        """Return if the benchmark is collecting."""
+        return self.current() == DPBenchmarkLifecycleState.COLLECTING
+
+    @property
+    def uploading(self) -> bool:
+        """Return if the benchmark is uploading."""
+        return self.current() == DPBenchmarkLifecycleState.UPLOADING
+
+    @property
+    def finished(self) -> bool:
+        """Return if the benchmark is finished."""
+        return self.current() == DPBenchmarkLifecycleState.FINISHED
+
+    @property
     def status(self) -> StatusBase:
         """Return the status of the benchmark."""
         match self.current():

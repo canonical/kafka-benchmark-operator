@@ -329,7 +329,7 @@ class KafkaConfigManager(ConfigManager):
     def get_worker_params(self) -> dict[str, Any]:
         """Return the workload parameters."""
         # Generate the truststore, if applicable
-        self.java_tls.set()
+        self.java_tls.set_truststore()
         if not (db := self.database_state.model()):
             return {}
         return {
