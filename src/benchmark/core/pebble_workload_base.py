@@ -35,6 +35,12 @@ class DPBenchmarkPebbleTemplatePaths(WorkloadTemplatePaths):
 
     @property
     @override
+    def results(self) -> str:
+        """The path to the results folder."""
+        return "/root/.benchmark/charmed_parameters/results/"
+
+    @property
+    @override
     def service_template(self) -> str:
         """The service template file."""
         return os.path.join(self.templates, "dpe_benchmark.service.j2")

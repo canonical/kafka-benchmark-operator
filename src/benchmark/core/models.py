@@ -9,7 +9,7 @@ as changes in the configuration.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any, MutableMapping, Optional
 
 from ops.model import Application, Relation, RelationDataContent, Unit
 from overrides import override
@@ -123,14 +123,14 @@ class RelationState:
         self.scope = scope
 
     @property
-    def relation_data(self) -> RelationDataContent | dict[Any, Any]:
+    def relation_data(self) -> MutableMapping[str, str]:
         """Returns the relation data."""
         if self.relation:
             return self.relation.data[self.component]
         return {}
 
     @property
-    def remote_data(self) -> RelationDataContent | dict[Any, Any]:
+    def remote_data(self) -> MutableMapping[str, str]:
         """Returns the remote relation data."""
         if not self.relation or self.scope != Scope.APP:
             return {}
