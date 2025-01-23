@@ -204,10 +204,10 @@ class KafkaConfigManager(ConfigManager):
         labels: str = "",
     ):
         super().__init__(workload, database_state, peer_state, peers, config, labels, is_leader)
-        self.worker_params_template_file = "templates/kafka_worker_params_template.j2"
+        self.worker_params_template_file = "kafka_worker_params_template.j2"
         self.java_tls = java_tls
         self.is_leader = is_leader
-        self.systemd_service_template_file = "templates/kafka_benchmark.service.j2"
+        self.systemd_service_template_file = "kafka_benchmark.service.j2"
 
     def _service_args(
         self, args: dict[str, Any], transition: DPBenchmarkLifecycleTransition
