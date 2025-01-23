@@ -9,9 +9,9 @@ as changes in the configuration.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any, MutableMapping, Optional
 
-from ops.model import Application, Relation, RelationDataContent, Unit
+from ops.model import Application, Relation, Unit
 from overrides import override
 from pydantic import BaseModel, error_wrappers, root_validator
 
@@ -125,14 +125,14 @@ class RelationState:
         self.scope = scope
 
     @property
-    def relation_data(self) -> RelationDataContent | dict[Any, Any]:
+    def relation_data(self) -> MutableMapping[str, str]:
         """Returns the relation data."""
-        if self.relation:
-            return self.relation.data[self.component]
-        return {}
+        if not self.relation:
+            return {}
+        return self.relation.data[self.component]
 
     @property
-    def remote_data(self) -> RelationDataContent | dict[Any, Any]:
+    def remote_data(self) -> MutableMapping[str, str]:
         """Returns the remote relation data."""
         if not self.relation or self.scope != Scope.APP:
             return {}
@@ -157,7 +157,8 @@ class RelationState:
         delete_fields = [key for key in items if not items[key]]
         update_content = {k: items[k] for k in items if k not in delete_fields}
 
-        self.relation_data.update(update_content)
+        # Only way I could get through the pyright here
+        self.relation_data.update({k: v for k, v in update_content.items() if v is not None})
 
         for field in delete_fields:
             del self.relation_data[field]

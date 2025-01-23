@@ -51,7 +51,7 @@ class WorkloadTemplatePaths(ABC):
 
     @property
     def workload_params(self) -> str:
-        """The path to the workload parameters folder."""
+        """The path to the workload parameters file."""
         return os.path.join(BENCHMARK_WORKLOAD_PATH, self.svc_name + ".json")
 
     @property

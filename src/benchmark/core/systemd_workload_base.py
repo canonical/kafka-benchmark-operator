@@ -25,7 +25,7 @@ from benchmark.core.workload_base import (
     WorkloadBase,
     WorkloadTemplatePaths,
 )
-from benchmark.literals import BENCHMARK_WORKLOAD_PATH
+from benchmark.literals import BENCHMARK_WORKLOAD_PATH, LINUX_GROUP, LINUX_USER
 
 
 class DPBenchmarkSystemdTemplatePaths(WorkloadTemplatePaths):
@@ -80,13 +80,13 @@ class DPBenchmarkSystemdWorkloadBase(WorkloadBase):
     @override
     def user(self) -> str:
         """Linux user for the process."""
-        return "root"
+        return LINUX_USER
 
     @property
     @override
     def group(self) -> str:
         """Linux group for the process."""
-        return "root"
+        return LINUX_GROUP
 
     @override
     def start(self) -> bool:

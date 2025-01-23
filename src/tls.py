@@ -1,8 +1,6 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-# TODO: This file must go away once Kafka starts sharing its certificates via client relation
-
 """This module contains TLS handlers and managers for the trusted-ca relation."""
 
 import json
@@ -10,24 +8,25 @@ import logging
 import os
 import secrets
 import string
-import subprocess
 
-from charms.tls_certificates_interface.v1.tls_certificates import (
+from charms.tls_certificates_interface.v3.tls_certificates import (
     generate_csr,
     generate_private_key,
 )
 from ops.charm import RelationEvent
-from ops.model import ModelError, SecretNotFoundError
+from ops.model import Application, ModelError, Secret, SecretNotFoundError
 
 from benchmark.base_charm import DPBenchmarkCharmBase
+from benchmark.core.workload_base import WorkloadBase
 from benchmark.events.handler import RelationHandler
-from literals import TRUSTED_CA_RELATION, TRUSTSTORE_LABEL
+from literals import TRUSTED_CA_RELATION, TRUSTSTORE_LABEL, TS_PASSWORD_KEY
 from models import JavaWorkloadPaths
 
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)
 
 
+# TODO: This class must go away once Kafka starts sharing its certificates via client relation
 class JavaTlsHandler(RelationHandler):
     """Class to manage the Java truststores."""
 
@@ -37,7 +36,12 @@ class JavaTlsHandler(RelationHandler):
     ):
         super().__init__(charm, TRUSTED_CA_RELATION)
         self.charm = charm
-        self.tls_manager = JavaTlsStoreManager(charm)
+        self.tls_manager = JavaTlsStoreManager(
+            workload=self.charm.workload,
+            secret=self.charm.model.get_secret(label=TRUSTSTORE_LABEL),
+            is_leader=self.charm.unit.is_leader(),
+            app=self.charm.app,
+        )
 
         self.framework.observe(
             self.charm.on[TRUSTED_CA_RELATION].relation_joined,
@@ -140,22 +144,25 @@ class JavaTlsStoreManager:
 
     def __init__(
         self,
-        charm: DPBenchmarkCharmBase,
+        workload: WorkloadBase,
+        secret: Secret,
+        is_leader: bool,
+        app: Application,
     ):
-        self.workload = charm.workload
+        self.workload = workload
         self.java_paths = JavaWorkloadPaths(self.workload.paths)
-        self.charm = charm
-        self.database = charm.database
-        self.relation_name = self.database.relation_name
+        self.secret = secret
         self.ca_alias = "ca"
         self.cert_alias = "server_certificate"
+        self.is_leader = is_leader
+        self.app = app
 
-    def set(self) -> bool:
+    def set_truststore(self) -> bool:
         """Sets the truststore and imports the certificates."""
         if not self.truststore_pwd:
             return False
         return (
-            self.set_truststore()
+            self._set_truststore()
             and self.import_cert(self.ca_alias, self.java_paths.ca)
             and self.import_cert(self.cert_alias, self.java_paths.server_certificate)
         )
@@ -164,9 +171,7 @@ class JavaTlsStoreManager:
     def truststore_pwd(self) -> str | None:
         """Returns the truststore password."""
         try:
-            return self.charm.model.get_secret(label=TRUSTSTORE_LABEL).get_content(refresh=True)[
-                "pwd"
-            ]
+            return self.secret.get_content(refresh=True)[TS_PASSWORD_KEY]
         except (SecretNotFoundError, KeyError):
             return None
         except ModelError as e:
@@ -176,21 +181,21 @@ class JavaTlsStoreManager:
     @truststore_pwd.setter
     def truststore_pwd(self, pwd: str) -> None:
         """Returns the truststore password."""
-        if not self.charm.unit.is_leader():
+        if not self.is_leader:
             # Nothing to do, we manage a single password for the entire application
             return
 
         if not self.truststore_pwd:
-            self.charm.app.add_secret({"pwd": pwd}, label=TRUSTSTORE_LABEL)
+            self.app.add_secret({TS_PASSWORD_KEY: pwd}, label=TRUSTSTORE_LABEL)
             return
 
-        self.charm.model.get_secret(label=TRUSTSTORE_LABEL).set_content({"pwd": pwd})
+        self.secret.set_content({TS_PASSWORD_KEY: pwd})
 
     def set_certificate(self, certificate: str, path: str) -> None:
         """Sets the unit certificate."""
         self.workload.write(content=certificate, path=path)
 
-    def set_truststore(self) -> bool:
+    def _set_truststore(self) -> bool:
         """Adds CA to JKS truststore."""
         if not self.workload.paths.exists(self.java_paths.ca):
             return False
@@ -201,16 +206,19 @@ class JavaTlsStoreManager:
             -keystore {self.java_paths.truststore} \
             -storepass {self.truststore_pwd} \
             -noprompt"
-        return (
-            self._exec(
-                command=command.split(),
+        import_cert = bool(
+            self.workload.exec(
+                command=command,
                 working_dir=os.path.dirname(os.path.realpath(self.java_paths.truststore)),
             )
-            and self._exec(
-                f"chown {self.workload.user}:{self.workload.group} {self.java_paths.truststore}".split()
-            )
-            and self._exec(f"chmod 770 {self.java_paths.truststore}".split())
         )
+        chown = bool(
+            self.workload.exec(
+                f"chown {self.workload.user}:{self.workload.group} {self.java_paths.truststore}"
+            )
+        )
+        chmod = bool(self.workload.exec(f"chmod 770 {self.java_paths.truststore}"))
+        return import_cert and chown and chmod
 
     def generate_password(self) -> str:
         """Creates randomized string for use as app passwords.
@@ -228,16 +236,4 @@ class JavaTlsStoreManager:
             -file {filename} \
             -keystore {self.java_paths.truststore} \
             -storepass {self.truststore_pwd} -noprompt"
-        return self._exec(command.split())
-
-    def _exec(self, command: list[str], working_dir: str | None = None) -> bool:
-        """Executes a command in the workload and manages the exceptions.
-
-        Returns True if the command was successful.
-        """
-        try:
-            self.workload.exec(command=" ".join(command), working_dir=working_dir)
-        except subprocess.CalledProcessError as e:
-            logger.error(e.stdout)
-            return e.stdout and "already exists" in e.stdout
-        return True
+        return bool(self.workload.exec(command))

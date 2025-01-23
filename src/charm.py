@@ -17,6 +17,7 @@ the user.
 
 import logging
 import os
+import subprocess
 from functools import cached_property
 from math import ceil
 from typing import Any
@@ -36,7 +37,9 @@ from benchmark.core.models import (
     DPBenchmarkBaseDatabaseModel,
     PeerState,
 )
+from benchmark.core.pebble_workload_base import DPBenchmarkPebbleWorkloadBase
 from benchmark.core.structured_config import BenchmarkCharmConfig
+from benchmark.core.systemd_workload_base import DPBenchmarkSystemdWorkloadBase
 from benchmark.core.workload_base import WorkloadBase
 from benchmark.events.actions import ActionsHandler
 from benchmark.events.db import DatabaseRelationHandler
@@ -48,84 +51,22 @@ from benchmark.literals import (
 )
 from benchmark.managers.config import ConfigManager
 from benchmark.managers.lifecycle import LifecycleManager
-from literals import CLIENT_RELATION_NAME, INITIAL_PORT, JAVA_VERSION, PORT_JUMP, TOPIC_NAME
+from literals import (
+    CLIENT_RELATION_NAME,
+    INITIAL_PORT,
+    JAVA_VERSION,
+    PORT_JUMP,
+    TEN_YEARS_IN_MINUTES,
+    TOPIC_NAME,
+    WORKER_PARAMS_YAML_FILE,
+)
 from models import KafkaBenchmarkCharmConfig, WorkloadTypeParameters
 
-# TODO: This file must go away once Kafka starts sharing its certificates via client relation
+# TODO: This line must go away once Kafka starts sharing its certificates via client relation
 from tls import JavaTlsHandler, JavaTlsStoreManager
 
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)
-
-
-KAFKA_WORKER_PARAMS_TEMPLATE = """name: Kafka-benchmark
-driverClass: io.openmessaging.benchmark.driver.kafka.KafkaBenchmarkDriver
-
-# Kafka client-specific configuration
-replicationFactor: {{ total_number_of_brokers }}
-
-topicConfig: |
-  min.insync.replicas={{ total_number_of_brokers }}
-
-commonConfig: |
-  security.protocol=SASL_PLAINTEXT
-  {{ list_of_brokers_bootstrap }}
-  sasl.mechanism=SCRAM-SHA-512
-  sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="{{ username }}" password="{{ password }}";
-  {% if truststore_path and truststore_pwd -%}
-  security.protocol=SASL_SSL
-  ssl.truststore.location={{ truststore_path }}
-  ssl.truststore.password={{ truststore_pwd }}
-  {%- endif %}
-  {% if keystore_path and keystore_pwd -%}
-  ssl.keystore.location={{ keystore_path }}
-  ssl.keystore.password={{ keystore_pwd }}
-  {%- endif %}
-  ssl.client.auth={{ ssl_client_auth }}
-
-producerConfig: |
-  max.in.flight.requests.per.connection={{ threads }}
-  retries=2147483647
-  acks=all
-  linger.ms=1
-  batch.size=1048576
-
-consumerConfig: |
-  auto.offset.reset=earliest
-  enable.auto.commit=false
-  max.partition.fetch.bytes=10485760
-"""
-
-KAFKA_WORKLOAD_PARAMS_TEMPLATE = """name: {{ partitionsPerTopic }} producer / {{ partitionsPerTopic }} consumers on 1 topic
-
-topics: 1
-partitionsPerTopic: {{ partitionsPerTopic }}
-messageSize: {{ messageSize }}
-payloadFile: "{{ charm_root }}/openmessaging-benchmark/payload/payload-1Kb.data"
-subscriptionsPerTopic: {{ partitionsPerTopic }}
-consumerPerSubscription: 1
-producersPerTopic: {{ partitionsPerTopic }}
-producerRate: {{ producerRate }}
-consumerBacklogSizeGB: 0
-testDurationMinutes: {{ duration }}
-"""
-
-KAFKA_SYSTEMD_SERVICE_TEMPLATE = """[Unit]
-Description=Service for controlling kafka openmessaging benchmark
-Wants=network.target
-Requires=network.target
-
-[Service]
-EnvironmentFile=-/etc/environment
-Environment=PYTHONPATH={{ charm_root }}/lib:{{ charm_root }}/venv:{{ charm_root }}/src/benchmark/wrapper
-ExecStart={{ charm_root }}/src/wrapper.py --test_name={{ test_name }} --command={{ command }} --is_coordinator={{ is_coordinator }} --workload={{ workload_name }} --threads={{ threads }} --parallel_processes={{ parallel_processes }} --duration={{ duration }} --peers={{ peers }} --extra_labels={{ labels }} {{ extra_config }}
-Restart=no
-TimeoutSec=600
-Type=simple
-"""
-
-WORKER_PARAMS_YAML_FILE = "worker_params.yaml"
-TEN_YEARS_IN_MINUTES = 5_256_000
 
 
 class KafkaDatabaseState(DatabaseState):
@@ -272,9 +213,10 @@ class KafkaConfigManager(ConfigManager):
         labels: str = "",
     ):
         super().__init__(workload, database_state, peer_state, peers, config, labels, is_leader)
-        self.worker_params_template = KAFKA_WORKER_PARAMS_TEMPLATE
+        self.worker_params_template_file = "templates/kafka_worker_params_template.j2"
         self.java_tls = java_tls
         self.is_leader = is_leader
+        self.systemd_service_template_file = "templates/kafka_benchmark.service.j2"
 
     def _service_args(
         self, args: dict[str, Any], transition: DPBenchmarkLifecycleTransition
@@ -297,8 +239,8 @@ class KafkaConfigManager(ConfigManager):
         values = self._service_args(options.dict(), transition)
         return self._render(
             values=values,
-            template_file=None,
-            template_content=KAFKA_SYSTEMD_SERVICE_TEMPLATE,
+            template_file=self.systemd_service_template_file,
+            template_content=None,
             dst_filepath=dst_path,
         )
 
@@ -316,8 +258,8 @@ class KafkaConfigManager(ConfigManager):
         values = self._service_args(values.dict(), transition)
         compare_svc = "\n".join(self.workload.read(self.workload.paths.service)) == self._render(
             values=values,
-            template_file=None,
-            template_content=KAFKA_SYSTEMD_SERVICE_TEMPLATE,
+            template_file=self.systemd_service_template_file,
+            template_content=None,
             dst_filepath=None,
         )
         compare_params = "\n".join(
@@ -333,11 +275,12 @@ class KafkaConfigManager(ConfigManager):
     def get_worker_params(self) -> dict[str, Any]:
         """Return the workload parameters."""
         # Generate the truststore, if applicable
-        self.java_tls.set()
+        self.java_tls.set_truststore()
         if not (db := self.database_state.model()):
             return {}
+        num_brokers = len(db.hosts) if db.hosts else 0
         return {
-            "total_number_of_brokers": len(self.peers) - 1,
+            "total_number_of_brokers": num_brokers,
             # We cannot have quotes nor brackets in this string.
             # Therefore, we render the entire line instead
             "list_of_brokers_bootstrap": "bootstrap.servers={}".format(
@@ -358,8 +301,8 @@ class KafkaConfigManager(ConfigManager):
         """Render the worker parameters."""
         return self._render(
             values=self.get_worker_params(),
-            template_file=None,
-            template_content=self.worker_params_template,
+            template_file=self.worker_params_template_file,
+            template_content=None,
             dst_filepath=dst_path,
         )
 
@@ -565,14 +508,27 @@ class KafkaLifecycleManager(LifecycleManager):
         return next_state
 
 
+def workload_build(workload_params_template: str) -> WorkloadBase:
+    """Build the workload."""
+    try:
+        # Really simple check to see if we have systemd
+        subprocess.check_output(["systemctl", "--help"])
+    except subprocess.CalledProcessError:
+        return DPBenchmarkPebbleWorkloadBase(workload_params_template)
+    return DPBenchmarkSystemdWorkloadBase(workload_params_template)
+
+
 class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
     """Charm the service."""
 
     config_type = KafkaBenchmarkCharmConfig
-    workload_params_template = KAFKA_WORKLOAD_PARAMS_TEMPLATE
 
     def __init__(self, *args):
+        # Load the workload parameters from the template before the constructor
+        with open("templates/kafka_workload_params_template.j2") as f:
+            self.workload_params_template = f.read()
         super().__init__(*args, db_relation_name=CLIENT_RELATION_NAME)
+
         self.labels = ",".join([self.model.name, self.unit.name.replace("/", "-")])
 
         self.database = KafkaDatabaseRelationHandler(
