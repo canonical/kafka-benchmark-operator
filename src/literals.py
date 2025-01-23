@@ -21,6 +21,11 @@ PORT_JUMP = 2
 # TODO: This file must go away once Kafka starts sharing its certificates via client relation
 TRUSTED_CA_RELATION = "trusted-ca"
 TRUSTSTORE_LABEL = "trusted-ca-truststore"
+TS_PASSWORD_KEY = "truststore-password"
+
+
+WORKER_PARAMS_YAML_FILE = "worker_params.yaml"
+TEN_YEARS_IN_MINUTES = 5_256_000
 
 
 class DPBenchmarkError(Exception):

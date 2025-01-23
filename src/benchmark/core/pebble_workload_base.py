@@ -15,6 +15,7 @@ from charms.operator_libs_linux.v1.systemd import (
 from overrides import override
 
 from benchmark.core.workload_base import WorkloadBase, WorkloadTemplatePaths
+from benchmark.literals import LINUX_GROUP, LINUX_USER
 
 
 class DPBenchmarkPebbleTemplatePaths(WorkloadTemplatePaths):
@@ -56,13 +57,13 @@ class DPBenchmarkPebbleWorkloadBase(WorkloadBase):
     @override
     def user(self) -> str:
         """Linux user for the process."""
-        return "root"
+        return LINUX_USER
 
     @property
     @override
     def group(self) -> str:
         """Linux group for the process."""
-        return "root"
+        return LINUX_GROUP
 
     @override
     def install(self) -> bool:

@@ -104,6 +104,7 @@ class ConfigManager:
             )
         except ValidationError:
             # Missing options
+            logger.warning("get_execution_options: Missing options")
             return None
 
     def is_collecting(self) -> bool:
@@ -134,8 +135,8 @@ class ConfigManager:
 
         if not self.is_leader:
             return True
-        self.peer_state.test_name = self.config.test_name or "benchmark"
-        self.peer_state.test_name = self.peer_state.test_name + "-" + str(time.time())
+        test_name_root = self.config.test_name or "benchmark"
+        self.peer_state.test_name = f"{test_name_root}-{str(time.time())}"
         return True
 
     def is_prepared(
