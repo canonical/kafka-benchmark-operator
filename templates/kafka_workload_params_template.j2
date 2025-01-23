@@ -1,12 +1,12 @@
-name: {{ partitionsPerTopic }} producer / {{ partitionsPerTopic }} consumers on 1 topic
+name: {{ clients }} producer / {{ clients }} consumers on 1 topic
 
 topics: 1
 partitionsPerTopic: {{ partitionsPerTopic }}
 messageSize: {{ messageSize }}
 payloadFile: "{{ charm_root }}/openmessaging-benchmark/payload/payload-1Kb.data"
-subscriptionsPerTopic: {{ partitionsPerTopic }}
-consumerPerSubscription: 1
-producersPerTopic: {{ partitionsPerTopic }}
+subscriptionsPerTopic: 1 
+consumerPerSubscription: {{ clients }}
+producersPerTopic: {{ clients }}
 producerRate: {{ producerRate }}
 consumerBacklogSizeGB: 0
 testDurationMinutes: {{ duration }}
