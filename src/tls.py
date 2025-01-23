@@ -1,8 +1,6 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-# TODO: This file must go away once Kafka starts sharing its certificates via client relation
-
 """This module contains TLS handlers and managers for the trusted-ca relation."""
 
 import json
@@ -28,6 +26,7 @@ from models import JavaWorkloadPaths
 logger = logging.getLogger(__name__)
 
 
+# TODO: This class must go away once Kafka starts sharing its certificates via client relation
 class JavaTlsHandler(RelationHandler):
     """Class to manage the Java truststores."""
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=Service for controlling kafka openmessaging benchmark
+Wants=network.target
+Requires=network.target
+
+[Service]
+EnvironmentFile=-/etc/environment
+Environment=PYTHONPATH={{ charm_root }}/lib:{{ charm_root }}/venv:{{ charm_root }}/src/benchmark/wrapper
+ExecStart={{ charm_root }}/src/wrapper.py --test_name={{ test_name }} --command={{ command }} --is_coordinator={{ is_coordinator }} --workload={{ workload_name }} --threads={{ threads }} --parallel_processes={{ parallel_processes }} --duration={{ duration }} --peers={{ peers }} --extra_labels={{ labels }} {{ extra_config }}
+Restart=no
+TimeoutSec=600
+Type=simple

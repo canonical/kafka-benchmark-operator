@@ -21,6 +21,10 @@ TRUSTSTORE_LABEL = "trusted-ca-truststore"
 TS_PASSWORD_KEY = "truststore-password"
 
 
+WORKER_PARAMS_YAML_FILE = "worker_params.yaml"
+TEN_YEARS_IN_MINUTES = 5_256_000
+
+
 class DPBenchmarkError(Exception):
     """Benchmark error."""
 
