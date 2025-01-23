@@ -36,9 +36,15 @@ class JavaTlsHandler(RelationHandler):
     ):
         super().__init__(charm, TRUSTED_CA_RELATION)
         self.charm = charm
+
+        secret = None
+        try:
+            secret = self.charm.model.get_secret(label=TRUSTSTORE_LABEL)
+        except SecretNotFoundError:
+            logger.debug("No truststore secret found")
         self.tls_manager = JavaTlsStoreManager(
             workload=self.charm.workload,
-            secret=self.charm.model.get_secret(label=TRUSTSTORE_LABEL),
+            secret=secret,
             is_leader=self.charm.unit.is_leader(),
             app=self.charm.app,
         )
@@ -145,7 +151,7 @@ class JavaTlsStoreManager:
     def __init__(
         self,
         workload: WorkloadBase,
-        secret: Secret,
+        secret: Secret | None,
         is_leader: bool,
         app: Application,
     ):
@@ -171,12 +177,13 @@ class JavaTlsStoreManager:
     def truststore_pwd(self) -> str | None:
         """Returns the truststore password."""
         try:
-            return self.secret.get_content(refresh=True)[TS_PASSWORD_KEY]
+            if self.secret:
+                return self.secret.get_content(refresh=True)[TS_PASSWORD_KEY]
         except (SecretNotFoundError, KeyError):
-            return None
+            logger.error("Failed to find the secret")
         except ModelError as e:
             logger.error(f"Error fetching secret: {e}")
-            return None
+        return None
 
     @truststore_pwd.setter
     def truststore_pwd(self, pwd: str) -> None:
@@ -189,7 +196,8 @@ class JavaTlsStoreManager:
             self.app.add_secret({TS_PASSWORD_KEY: pwd}, label=TRUSTSTORE_LABEL)
             return
 
-        self.secret.set_content({TS_PASSWORD_KEY: pwd})
+        if self.secret:
+            self.secret.set_content({TS_PASSWORD_KEY: pwd})
 
     def set_certificate(self, certificate: str, path: str) -> None:
         """Sets the unit certificate."""
