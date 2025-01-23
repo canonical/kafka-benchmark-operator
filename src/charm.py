@@ -310,10 +310,12 @@ class KafkaConfigManager(ConfigManager):
     def get_workload_params(self) -> dict[str, Any]:
         """Return the worker parameters."""
         workload = WorkloadTypeParameters[self.config.workload_name]
+        clients = ceil((int(self.config.parallel_processes) * len(self.peers)) / 2)
+        partitions_per_topic = self.config.threads * clients
+
         return {
-            "partitionsPerTopic": ceil(
-                (int(self.config.parallel_processes) * len(self.peers)) / 2
-            ),
+            "partitionsPerTopic": partitions_per_topic,
+            "clients": clients,
             "duration": int(self.config.duration / 60)
             if self.config.duration > 0
             else TEN_YEARS_IN_MINUTES,
