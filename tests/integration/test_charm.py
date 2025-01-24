@@ -24,23 +24,24 @@ from .helpers import (
 logger = logging.getLogger(__name__)
 
 
-USE_TLS = {
+TLS_MARK = {
     (use_tls): pytest.param(
         use_tls,
-        id="use_tls",
+        id=str(use_tls),
         marks=[
-            pytest.mark.group("use_tls"),
+            pytest.mark.group(str(use_tls)),
         ],
     )
     for use_tls in [True, False]
 }
+USE_TLS = list(TLS_MARK.values())
 
 
 @pytest.mark.parametrize("use_tls", USE_TLS)
 @pytest.mark.abort_on_fail
 @pytest.mark.skip_if_deployed
 async def test_deploy(ops_test: OpsTest, kafka_benchmark_charm, use_tls) -> None:
-    """Build and deploy OpenSearch with a single unit and remove it."""
+    """Build and deploy with and without TLS."""
     await ops_test.model.set_config(MODEL_CONFIG)
 
     await ops_test.model.deploy(
@@ -75,8 +76,7 @@ async def test_deploy(ops_test: OpsTest, kafka_benchmark_charm, use_tls) -> None
 @pytest.mark.parametrize("use_tls", USE_TLS)
 @pytest.mark.abort_on_fail
 async def test_prepare(ops_test: OpsTest, use_tls) -> None:
-    # async def test_prepare(ops_test: OpsTest, kafka_benchmark_charm) -> None:
-    """Build and deploy OpenSearch with a single unit and remove it."""
+    """Test prepare action."""
     leader_id = await get_leader_unit_id(ops_test)
 
     output = await run_action(ops_test, "prepare", f"{APP_NAME}/{leader_id}")
@@ -93,8 +93,7 @@ async def test_prepare(ops_test: OpsTest, use_tls) -> None:
 @pytest.mark.parametrize("use_tls", USE_TLS)
 @pytest.mark.abort_on_fail
 async def test_run(ops_test: OpsTest, use_tls) -> None:
-    # async def test_prepare(ops_test: OpsTest, kafka_benchmark_charm) -> None:
-    """Build and deploy OpenSearch with a single unit and remove it."""
+    """Test run action."""
     leader_id = await get_leader_unit_id(ops_test)
 
     output = await run_action(ops_test, "run", f"{APP_NAME}/{leader_id}")
@@ -112,8 +111,7 @@ async def test_run(ops_test: OpsTest, use_tls) -> None:
 @pytest.mark.parametrize("use_tls", USE_TLS)
 @pytest.mark.abort_on_fail
 async def test_stop(ops_test: OpsTest, use_tls) -> None:
-    # async def test_prepare(ops_test: OpsTest, kafka_benchmark_charm) -> None:
-    """Build and deploy OpenSearch with a single unit and remove it."""
+    """Test stop action."""
     leader_id = await get_leader_unit_id(ops_test)
 
     output = await run_action(ops_test, "stop", f"{APP_NAME}/{leader_id}")
@@ -130,8 +128,7 @@ async def test_stop(ops_test: OpsTest, use_tls) -> None:
 @pytest.mark.parametrize("use_tls", USE_TLS)
 @pytest.mark.abort_on_fail
 async def test_restart(ops_test: OpsTest, use_tls) -> None:
-    # async def test_prepare(ops_test: OpsTest, kafka_benchmark_charm) -> None:
-    """Build and deploy OpenSearch with a single unit and remove it."""
+    """Test stop and restart the benchmark."""
     leader_id = await get_leader_unit_id(ops_test)
 
     output = await run_action(ops_test, "run", f"{APP_NAME}/{leader_id}")
@@ -149,8 +146,7 @@ async def test_restart(ops_test: OpsTest, use_tls) -> None:
 @pytest.mark.parametrize("use_tls", USE_TLS)
 @pytest.mark.abort_on_fail
 async def test_clean(ops_test: OpsTest, use_tls) -> None:
-    # async def test_prepare(ops_test: OpsTest, kafka_benchmark_charm) -> None:
-    """Build and deploy OpenSearch with a single unit and remove it."""
+    """Test cleanup action."""
     leader_id = await get_leader_unit_id(ops_test)
 
     output = await run_action(ops_test, "stop", f"{APP_NAME}/{leader_id}")
