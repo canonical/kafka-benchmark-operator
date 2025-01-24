@@ -73,7 +73,6 @@ pytest-operator-groups = {git = "https://github.com/canonical/data-platform-work
 pytest-microceph = {git = "https://github.com/canonical/data-platform-workflows", tag = "v26.0.0", subdirectory = "python/pytest_plugins/microceph"}
 juju = "^3.5.2"
 ops = "^2.17.0"
-tenacity = "^9.0.0"
 pyyaml = "^6.0.2"
 urllib3 = "^2.2.3"
 protobuf = "5.28.2"
