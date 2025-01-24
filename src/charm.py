@@ -50,7 +50,15 @@ from benchmark.literals import (
 )
 from benchmark.managers.config import ConfigManager
 from benchmark.managers.lifecycle import LifecycleManager
-from literals import CLIENT_RELATION_NAME, INITIAL_PORT, JAVA_VERSION, PORT_JUMP, TOPIC_NAME, TEN_YEARS_IN_MINUTES, WORKER_PARAMS_YAML_FILE
+from literals import (
+    CLIENT_RELATION_NAME,
+    INITIAL_PORT,
+    JAVA_VERSION,
+    PORT_JUMP,
+    TEN_YEARS_IN_MINUTES,
+    TOPIC_NAME,
+    WORKER_PARAMS_YAML_FILE,
+)
 from models import KafkaBenchmarkCharmConfig, WorkloadTypeParameters
 
 # TODO: This line must go away once Kafka starts sharing its certificates via client relation
