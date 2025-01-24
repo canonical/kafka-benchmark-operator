@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """This connects the benchmark service to the database and the grafana agent.
@@ -30,6 +30,7 @@ from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.model import Application, BlockedStatus, Relation, Unit
 from overrides import override
+from tenacity import Retrying, stop_after_attempt, wait_fixed
 
 from benchmark.base_charm import DPBenchmarkCharmBase
 from benchmark.core.models import (
@@ -280,7 +281,7 @@ class KafkaConfigManager(ConfigManager):
             return {}
         num_brokers = len(db.hosts) if db.hosts else 0
         return {
-            "total_number_of_brokers": num_brokers,
+            "total_num_replicas": min(num_brokers, 3),
             # We cannot have quotes nor brackets in this string.
             # Therefore, we render the entire line instead
             "list_of_brokers_bootstrap": "bootstrap.servers={}".format(
@@ -351,13 +352,15 @@ class KafkaConfigManager(ConfigManager):
         # First, clean if a topic already existed
         self.clean()
         try:
-            if model := self.database_state.model():
-                topic = NewTopic(
-                    name=model.db_name,
-                    num_partitions=self.config.parallel_processes * (len(self.peers) + 1),
-                    replication_factor=self.client.replication_factor,
-                )
-                self.client.create_topic(topic)
+            for attempt in Retrying(stop=stop_after_attempt(4), wait=wait_fixed(wait=15)):
+                with attempt:
+                    if model := self.database_state.model():
+                        topic = NewTopic(
+                            name=model.db_name,
+                            num_partitions=self.config.parallel_processes * (len(self.peers) + 1),
+                            replication_factor=self.client.replication_factor,
+                        )
+                        self.client.create_topic(topic)
             else:
                 logger.warning("No database model found")
                 return False
