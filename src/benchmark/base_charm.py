@@ -20,7 +20,7 @@ from typing import Any
 
 from charms.data_platform_libs.v0.data_models import TypedCharmBase
 from charms.grafana_agent.v0.cos_agent import COSAgentProvider
-from ops.charm import CharmEvents
+from ops.charm import CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.model import BlockedStatus
 
@@ -85,6 +85,7 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.update_status, self._on_update_status)
+        self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
 
         self.database = DatabaseRelationHandler(self, db_relation_name)
         self.peers = PeerRelationHandler(self, PEER_RELATION)
@@ -108,9 +109,11 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
         self.config_manager = ConfigManager(
             workload=self.workload,
             database_state=self.database.state,
+            peer_state=self.peers.state,
             peers=self.peers.peers(),
             config=self.config,
             labels=self.labels,
+            is_leader=self.unit.is_leader(),
         )
         self.lifecycle = LifecycleManager(
             self.peers.all_unit_states(),
@@ -130,13 +133,7 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
         self.workload.install()
         self.peers.state.lifecycle = DPBenchmarkLifecycleState.UNSET
 
-    def _on_update_status(self, event: EventBase | None = None) -> None:
-        """Set status for the operator and finishes the service.
-
-        First, we check if there are relations with any meaningful data. If not, then
-        this is the most important status to report. Then, we check the details of the
-        benchmark service and the benchmark status.
-        """
+    def _on_collect_unit_status(self, _: CollectStatusEvent | None = None) -> None:
         try:
             status = self.database.state.model()
         except DPBenchmarkMissingOptionsError as e:
@@ -145,10 +142,18 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
         if not status:
             self.unit.status = BlockedStatus("No database relation available")
             return
-
         # Now, let's check if we need to update our lifecycle position
         self.update_state()
         self.unit.status = self.lifecycle.status
+
+    def _on_update_status(self, _: EventBase | None = None) -> None:
+        """Set status for the operator and finishes the service.
+
+        First, we check if there are relations with any meaningful data. If not, then
+        this is the most important status to report. Then, we check the details of the
+        benchmark service and the benchmark status.
+        """
+        self._on_collect_unit_status()
 
     def _on_config_changed(self, event: EventBase) -> None:
         """Config changed event."""
@@ -157,12 +162,17 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
             self._on_update_status()
             return
 
-        if not self.config_manager.is_stopped() or not self.config_manager.stop():
+        if (
+            self.lifecycle.running
+            and self.config_manager.is_running()
+            and not self.config_manager.stop()
+        ):
             # The stop process may be async so we defer
             logger.warning("Config changed: tried stopping the service but returned False")
             event.defer()
             return
-        self.config_manager.run()
+        elif self.lifecycle.running:
+            self.config_manager.run()
         self._on_update_status()
 
     def scrape_config(self) -> list[dict[str, Any]]:

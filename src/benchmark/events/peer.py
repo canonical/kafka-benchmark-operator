@@ -6,10 +6,14 @@
 from abc import abstractmethod
 
 from ops.framework import Object
-from ops.model import Unit
+from ops.model import Unit, WaitingStatus
 
 from benchmark.core.models import PeerState
-from benchmark.literals import Scope
+from benchmark.literals import (
+    DPBenchmarkLifecycleState,
+    DPBenchmarkLifecycleTransition,
+    Scope,
+)
 
 
 class PeerRelationHandler(Object):
@@ -24,14 +28,19 @@ class PeerRelationHandler(Object):
         self.charm = charm
         self.relation = self.charm.model.get_relation(relation_name)
         self.relation_name = relation_name
-        self.state = PeerState(self.charm.unit, self.relation)
+        self.state = PeerState(self.charm.unit, self.relation, self.relation.app)
         self.framework.observe(
             self.charm.on[self.relation_name].relation_changed,
             self._on_peer_changed,
         )
+
+        self.framework.observe(
+            self.charm.on[self.relation_name].relation_joined,
+            self._on_new_peer_unit,
+        )
         self.framework.observe(
             self.charm.on[self.relation_name].relation_departed,
-            self._on_peer_changed,
+            self._on_new_peer_unit,
         )
 
     @abstractmethod
@@ -41,11 +50,31 @@ class PeerRelationHandler(Object):
 
     def _on_peer_changed(self, _):
         """Handle the relation-changed event."""
-        self.charm.lifecycle_update()
+        if (
+            next_state := self.charm.lifecycle.next(None)
+        ) and self.charm.lifecycle.current() != next_state:
+            self.charm.lifecycle.make_transition(next_state)
+
+    def _on_new_peer_unit(self, _):
+        """Handle the relation-joined and relation-departed events."""
+        # We have a new unit coming in. We need to stop the benchmark if running.
+        if self.charm.lifecycle.current() not in [
+            DPBenchmarkLifecycleState.UNSET,
+            DPBenchmarkLifecycleState.PREPARING,
+            DPBenchmarkLifecycleState.AVAILABLE,
+        ]:
+            if not (state := self.charm.lifecycle.next(DPBenchmarkLifecycleTransition.STOP)):
+                return
+            self.charm.lifecycle.make_transition(state)
+            self.charm.unit.status = WaitingStatus(
+                "Stopping the benchmark: peer unit count changed."
+            )
 
     def units(self) -> list[Unit]:
         """Return the peer units."""
-        return self.relation.units
+        if not self.relation:
+            return []
+        return list(self.relation.units)
 
     def this_unit(self) -> Unit:
         """Return the current unit."""
@@ -57,18 +86,8 @@ class PeerRelationHandler(Object):
             component=unit,
             relation=self.relation,
             scope=Scope.UNIT,
+            peer_app=self.relation.app,
         )
-
-    def all_unit_states(self) -> dict[Unit, PeerState]:
-        """Return the data for all the units."""
-        return {
-            unit: PeerState(
-                component=unit,
-                relation=self.relation,
-                scope=Scope.UNIT,
-            )
-            for unit in self.units() + [self.this_unit()]
-        }
 
     def app_state(self) -> PeerState:
         """Return the app data."""
@@ -76,4 +95,35 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
+            peer_app=self.relation.app,
         )
+
+    @property
+    def test_name(self) -> str | None:
+        """Return the app data."""
+        if not self.relation:
+            return None
+
+        return PeerState(
+            component=self.relation.app,
+            relation=self.relation,
+            scope=Scope.APP,
+            peer_app=self.relation.app,
+        ).test_name
+
+    @test_name.setter
+    def test_name(self, name: str | None) -> None:
+        """Return the app data."""
+        state = PeerState(
+            component=self.relation.app,
+            relation=self.relation,
+            scope=Scope.APP,
+            peer_app=self.relation.app,
+        )
+        state.test_name = name
+
+    def all_unit_states(self) -> dict[Unit, PeerState]:
+        """Return all the unit states."""
+        if not self.relation:
+            return {}
+        return {unit: self.unit_state(unit) for unit in self.units() + [self.this_unit()]}

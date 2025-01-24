@@ -1,0 +1,36 @@
+name: Kafka-benchmark
+driverClass: io.openmessaging.benchmark.driver.kafka.KafkaBenchmarkDriver
+
+# Kafka client-specific configuration
+replicationFactor: {{ total_number_of_brokers }}
+
+topicConfig: |
+  min.insync.replicas={{ total_number_of_brokers }}
+
+commonConfig: |
+  security.protocol=SASL_PLAINTEXT
+  {{ list_of_brokers_bootstrap }}
+  sasl.mechanism=SCRAM-SHA-512
+  sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="{{ username }}" password="{{ password }}";
+  {% if truststore_path and truststore_pwd -%}
+  security.protocol=SASL_SSL
+  ssl.truststore.location={{ truststore_path }}
+  ssl.truststore.password={{ truststore_pwd }}
+  {%- endif %}
+  {% if keystore_path and keystore_pwd -%}
+  ssl.keystore.location={{ keystore_path }}
+  ssl.keystore.password={{ keystore_pwd }}
+  {%- endif %}
+  ssl.client.auth={{ ssl_client_auth }}
+
+producerConfig: |
+  max.in.flight.requests.per.connection={{ threads }}
+  retries=2147483647
+  acks=all
+  linger.ms=1
+  batch.size=1048576
+
+consumerConfig: |
+  auto.offset.reset=earliest
+  enable.auto.commit=false
+  max.partition.fetch.bytes=10485760

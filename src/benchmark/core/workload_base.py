@@ -6,9 +6,15 @@
 import os
 from abc import ABC, abstractmethod
 
+from benchmark.literals import BENCHMARK_WORKLOAD_PATH
+
 
 class WorkloadTemplatePaths(ABC):
     """Interface for workload template paths."""
+
+    def __init__(self):
+        if not self.exists(BENCHMARK_WORKLOAD_PATH):
+            os.makedirs(BENCHMARK_WORKLOAD_PATH, exist_ok=True)
 
     @property
     def svc_name(self) -> str:
@@ -16,9 +22,20 @@ class WorkloadTemplatePaths(ABC):
         return "dpe_benchmark"
 
     @property
+    def charm_dir(self) -> str:
+        """The path to the benchmark script."""
+        # If we do not have this set, then we have a bigger problem
+        return os.environ["CHARM_DIR"]
+
+    @property
     def bin(self) -> str:
         """The path to the benchmark script."""
-        return os.path.join(os.environ.get("CHARM_DIR", ""), "src/benchmark/wrapper/main.py")
+        return os.path.join(self.charm_dir, "src/benchmark/wrapper/main.py")
+
+    @property
+    def templates(self) -> str:
+        """The path to the workload template folder."""
+        return os.path.join(self.charm_dir, "templates")
 
     @property
     @abstractmethod
@@ -33,10 +50,9 @@ class WorkloadTemplatePaths(ABC):
         ...
 
     @property
-    @abstractmethod
     def workload_params(self) -> str:
         """The path to the workload parameters file."""
-        ...
+        return os.path.join(BENCHMARK_WORKLOAD_PATH, self.svc_name + ".json")
 
     @property
     @abstractmethod
@@ -47,12 +63,6 @@ class WorkloadTemplatePaths(ABC):
     def exists(self, path: str) -> bool:
         """Check if the workload path exist."""
         return os.path.exists(path)
-
-    @property
-    @abstractmethod
-    def templates(self) -> str:
-        """The path to the workload template folder."""
-        ...
 
 
 class WorkloadBase(ABC):
@@ -68,6 +78,18 @@ class WorkloadBase(ABC):
         """Installs the workload."""
         os.chmod(self.paths.bin, 0o700)
         return True
+
+    @property
+    @abstractmethod
+    def user(self) -> str:
+        """Linux user for the process."""
+        ...
+
+    @property
+    @abstractmethod
+    def group(self) -> str:
+        """Linux group for the process."""
+        ...
 
     @abstractmethod
     def start(self) -> bool:
@@ -87,6 +109,16 @@ class WorkloadBase(ABC):
     @abstractmethod
     def reload(self) -> bool:
         """Reloads the script."""
+        ...
+
+    @abstractmethod
+    def enable(self) -> bool:
+        """Enables service."""
+        ...
+
+    @abstractmethod
+    def disable(self) -> bool:
+        """Disables service."""
         ...
 
     @abstractmethod
@@ -111,6 +143,10 @@ class WorkloadBase(ABC):
             mode: the write mode. Usually "w" for write, or "a" for append. Default "w"
         """
         ...
+
+    def remove(self, path: str) -> None:
+        """Remove the specified file."""
+        os.remove(path)
 
     @abstractmethod
     def exec(

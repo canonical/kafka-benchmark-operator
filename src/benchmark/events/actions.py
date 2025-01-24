@@ -1,14 +1,22 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""This module handles the action events."""
+"""This module abstracts the different DBs and provide a single API set.
+
+The DatabaseRelationHandler listens to DB events and manages the relation lifecycles.
+The charm interacts with the manager and requests data + listen to some key events such
+as changes in the configuration.
+"""
 
 import logging
+import typing
+
+if typing.TYPE_CHECKING:
+    from benchmark.base_charm import DPBenchmarkCharmBase
 
 from ops.charm import ActionEvent
-from ops.framework import EventBase
+from ops.framework import EventBase, Object
 
-from benchmark.base_charm import DPBenchmarkCharmBase
 from benchmark.core.models import DPBenchmarkLifecycleState
 from benchmark.literals import (
     DPBenchmarkLifecycleTransition,
@@ -18,11 +26,12 @@ from benchmark.literals import (
 logger = logging.getLogger(__name__)
 
 
-class ActionsHandler:
+class ActionsHandler(Object):
     """Handle the actions for the benchmark charm."""
 
-    def __init__(self, charm: DPBenchmarkCharmBase):
+    def __init__(self, charm: "DPBenchmarkCharmBase"):
         """Initialize the class."""
+        super().__init__(charm, None)
         self.charm = charm
         self.database = charm.database
         self.lifecycle = charm.lifecycle

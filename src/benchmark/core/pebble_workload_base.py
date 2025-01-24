@@ -15,6 +15,7 @@ from charms.operator_libs_linux.v1.systemd import (
 from overrides import override
 
 from benchmark.core.workload_base import WorkloadBase, WorkloadTemplatePaths
+from benchmark.literals import LINUX_GROUP, LINUX_USER
 
 
 class DPBenchmarkPebbleTemplatePaths(WorkloadTemplatePaths):
@@ -25,20 +26,6 @@ class DPBenchmarkPebbleTemplatePaths(WorkloadTemplatePaths):
     def service(self) -> str:
         """The optional path to the service file managing the script."""
         return f"/etc/systemd/system/{self.svc_name}.service"
-
-    @property
-    @override
-    def workload_params(self) -> str:
-        """The path to the workload parameters folder."""
-        if not self.exists("/root/.benchmark/charmed_parameters"):
-            os.makedirs("/root/.benchmark/charmed_parameters", exist_ok=True)
-        return "/root/.benchmark/charmed_parameters/" + self.svc_name + ".json"
-
-    @property
-    @override
-    def templates(self) -> str:
-        """The path to the workload template folder."""
-        return os.path.join(os.environ.get("CHARM_DIR", ""), "templates")
 
     @property
     @override
@@ -66,6 +53,18 @@ class DPBenchmarkPebbleWorkloadBase(WorkloadBase):
         self.paths = DPBenchmarkPebbleTemplatePaths()
         os.chmod(self.paths.workload_params, 0o700)
 
+    @property
+    @override
+    def user(self) -> str:
+        """Linux user for the process."""
+        return LINUX_USER
+
+    @property
+    @override
+    def group(self) -> str:
+        """Linux group for the process."""
+        return LINUX_GROUP
+
     @override
     def install(self) -> bool:
         """Installs the workload."""
@@ -90,6 +89,14 @@ class DPBenchmarkPebbleWorkloadBase(WorkloadBase):
     def reload(self) -> bool:
         """Reloads the workload service."""
         ...
+
+    def enable(self) -> bool:
+        """Enables service."""
+        return True
+
+    def disable(self) -> bool:
+        """Disables service."""
+        return False
 
     @override
     def read(self, path: str) -> list[str]:
