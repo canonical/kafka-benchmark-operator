@@ -348,9 +348,6 @@ class KafkaConfigManager(ConfigManager):
     def prepare(self) -> bool:
         """Prepare the benchmark service."""
         super().prepare()
-
-        # First, clean if a topic already existed
-        self.clean()
         try:
             for attempt in Retrying(
                 stop=stop_after_attempt(4), wait=wait_fixed(wait=20), reraise=True
