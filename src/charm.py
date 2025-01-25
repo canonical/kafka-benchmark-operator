@@ -352,7 +352,9 @@ class KafkaConfigManager(ConfigManager):
         # First, clean if a topic already existed
         self.clean()
         try:
-            for attempt in Retrying(stop=stop_after_attempt(4), wait=wait_fixed(wait=15)):
+            for attempt in Retrying(
+                stop=stop_after_attempt(4), wait=wait_fixed(wait=20), reraise=True
+            ):
                 with attempt:
                     if model := self.database_state.model():
                         topic = NewTopic(
@@ -361,9 +363,6 @@ class KafkaConfigManager(ConfigManager):
                             replication_factor=self.client.replication_factor,
                         )
                         self.client.create_topic(topic)
-            else:
-                logger.warning("No database model found")
-                return False
         except Exception as e:
             logger.debug(f"Error creating topic: {e}")
 
