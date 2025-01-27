@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """This module abstracts the different DBs and provide a single API set.
@@ -241,12 +241,14 @@ class PeerState(RelationState):
     def stop_directive(self, stop: bool | None) -> None:
         """Sets the test name."""
         if not self.relation or not self.relation.data or not self.peer_app:
-            return None
-
-        if not stop and STOP_DIRECTIVE_KEY in self.relation.data[self.peer_app]:
-            del self.relation.data[self.peer_app][STOP_DIRECTIVE_KEY]
             return
-        self.relation.data[self.peer_app][STOP_DIRECTIVE_KEY] = str(stop)
+
+        if STOP_DIRECTIVE_KEY in self.relation.data[self.peer_app]:
+            # Cleaning up and then we decide to re-apply or not
+            del self.relation.data[self.peer_app][STOP_DIRECTIVE_KEY]
+
+        if stop:
+            self.relation.data[self.peer_app][STOP_DIRECTIVE_KEY] = str(stop)
 
 
 class DatabaseState(RelationState):

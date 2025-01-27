@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """The lifecycle manager class."""
@@ -32,10 +32,12 @@ class LifecycleManager:
         peers: dict[Unit, PeerState],
         this_unit: Unit,
         config_manager: ConfigManager,
+        is_leader: bool,
     ):
         self.peers = peers
         self.this_unit = this_unit
         self.config_manager = config_manager
+        self.is_leader = is_leader
 
     def current(self) -> DPBenchmarkLifecycleState:
         """Return the current lifecycle state."""
@@ -289,10 +291,13 @@ class _StoppedLifecycleState(_LifecycleStateBase):
         if state := super().next(transition):
             return state
 
-        if self.manager.config_manager.is_running():
+        if transition == DPBenchmarkLifecycleTransition.RUN:
             return _RunningLifecycleState(self.manager)
 
-        if transition == DPBenchmarkLifecycleTransition.RUN:
+        if not self.manager.config_manager.peer_state.stop_directive:
+            return _RunningLifecycleState(self.manager)
+
+        if self.manager.config_manager.is_running():
             return _RunningLifecycleState(self.manager)
 
         if self.manager.config_manager.is_failed():
@@ -374,15 +379,6 @@ class _RunningLifecycleState(_LifecycleStateBase):
             return state
 
         if transition == DPBenchmarkLifecycleTransition.STOP:
-            return _StoppedLifecycleState(self.manager)
-
-        if (peer_state := self.manager._peers_state()) and (
-            self.manager._compare_lifecycle_states(
-                peer_state,
-                DPBenchmarkLifecycleState.STOPPED,
-            )
-            == 0
-        ):
             return _StoppedLifecycleState(self.manager)
 
         if self.manager.config_manager.is_failed():

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """This connects the benchmark service to the database and the grafana agent.
@@ -19,16 +19,18 @@ import logging
 import os
 import subprocess
 from functools import cached_property
+from math import ceil
 from typing import Any
 
 import charms.operator_libs_linux.v0.apt as apt
 import ops
 from charms.data_platform_libs.v0.data_interfaces import KafkaRequires
 from charms.kafka.v0.client import KafkaClient, NewTopic
-from ops.charm import ActionEvent, CharmBase
+from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.model import Application, BlockedStatus, Relation, Unit
 from overrides import override
+from tenacity import Retrying, stop_after_attempt, wait_fixed
 
 from benchmark.base_charm import DPBenchmarkCharmBase
 from benchmark.core.models import (
@@ -277,8 +279,9 @@ class KafkaConfigManager(ConfigManager):
         self.java_tls.set_truststore()
         if not (db := self.database_state.model()):
             return {}
+        num_brokers = len(db.hosts) if db.hosts else 0
         return {
-            "total_number_of_brokers": len(self.peers) - 1,
+            "total_num_replicas": min(num_brokers, 3),
             # We cannot have quotes nor brackets in this string.
             # Therefore, we render the entire line instead
             "list_of_brokers_bootstrap": "bootstrap.servers={}".format(
@@ -308,8 +311,12 @@ class KafkaConfigManager(ConfigManager):
     def get_workload_params(self) -> dict[str, Any]:
         """Return the worker parameters."""
         workload = WorkloadTypeParameters[self.config.workload_name]
+        clients = ceil((int(self.config.parallel_processes) * len(self.peers)) / 2)
+        partitions_per_topic = self.config.threads * clients
+
         return {
-            "partitionsPerTopic": self.config.parallel_processes,
+            "partitionsPerTopic": partitions_per_topic,
+            "clients": clients,
             "duration": int(self.config.duration / 60)
             if self.config.duration > 0
             else TEN_YEARS_IN_MINUTES,
@@ -345,13 +352,15 @@ class KafkaConfigManager(ConfigManager):
         # First, clean if a topic already existed
         self.clean()
         try:
-            if model := self.database_state.model():
-                topic = NewTopic(
-                    name=model.db_name,
-                    num_partitions=self.config.parallel_processes * (len(self.peers) + 1),
-                    replication_factor=self.client.replication_factor,
-                )
-                self.client.create_topic(topic)
+            for attempt in Retrying(stop=stop_after_attempt(4), wait=wait_fixed(wait=15)):
+                with attempt:
+                    if model := self.database_state.model():
+                        topic = NewTopic(
+                            name=model.db_name,
+                            num_partitions=self.config.parallel_processes * (len(self.peers) + 1),
+                            replication_factor=self.client.replication_factor,
+                        )
+                        self.client.create_topic(topic)
             else:
                 logger.warning("No database model found")
                 return False
@@ -456,18 +465,6 @@ class KafkaBenchmarkActionsHandler(ActionsHandler):
             return False
         return super()._preflight_checks()
 
-    @override
-    def on_run_action(self, event: ActionEvent) -> None:
-        """Process the run action.
-
-        This method avoids execution of RUN if this unit is a leader. Only non-leaders can
-        kickstart the RUN logic as we need all non-leaders to be RUNNING before leader can start.
-        """
-        if self.unit.is_leader():
-            event.fail("Only non-leaders can start the benchmark")
-            return
-        super().on_run_action(event)
-
 
 class KafkaLifecycleManager(LifecycleManager):
     """The lifecycle manager class.
@@ -483,12 +480,18 @@ class KafkaLifecycleManager(LifecycleManager):
         config_manager: ConfigManager,
         is_leader: bool = False,
     ):
-        super().__init__(peers, this_unit, config_manager)
+        super().__init__(peers, this_unit, config_manager, is_leader)
         self.is_leader = is_leader
 
     @override
     def _peers_state(self) -> DPBenchmarkLifecycleState | None:
         next_state = super()._peers_state()
+
+        if next_state == DPBenchmarkLifecycleState.STOPPED and not self.is_leader:
+            # If not leader, then we can only stop if the leader has issued a stop directive
+            if self.peers[self.this_unit].stop_directive:
+                return DPBenchmarkLifecycleState.STOPPED
+            return None
 
         # Now, there is a special rule: if we are the leader unit, we can only move to RUNNING
         # if all the peers are already running or if peer count is zero
@@ -560,6 +563,40 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
         self.actions = KafkaBenchmarkActionsHandler(self)
 
         self.framework.observe(self.database.on.db_config_update, self._on_config_changed)
+        self.framework.observe(
+            self.on[PEER_RELATION].relation_changed,
+            self._on_run_check_event,
+        )
+        self.run_check_deferred = False
+
+    def _on_run_check_event(self, event: EventBase) -> None:
+        """Restarts the leader service at RUN time.
+
+        The main challenge with this benchmark is that the leader must wait for all
+        the peers to really work. Therefore, we will monitor every change in the peers'
+        state and once all the peers move to RUN, we restart the service.
+        """
+        if not self.unit.is_leader():
+            # Only the leader processes this case
+            # Only the leader must be started at the end.
+            return
+
+        if not self.lifecycle.current() == DPBenchmarkLifecycleState.RUNNING:
+            # We only care about the running state
+            return
+
+        # We do not need to check for len(peers) > 1 case
+        # there is no peer changed in this case
+        if not self.lifecycle.check_all_peers_in_state(DPBenchmarkLifecycleState.RUNNING):
+            # Not all peers have started yet. We need to wait for them.
+            if not self.run_check_deferred:
+                event.defer()
+                self.run_check_deferred = True
+            return
+
+        # All units have started.
+        # Now we can restart the leader and finish this event
+        self.workload.restart()
 
     @override
     def _on_install(self, event: EventBase) -> None:

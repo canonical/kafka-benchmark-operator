@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """This script runs the benchmark tool, collects its output and forwards to prometheus."""

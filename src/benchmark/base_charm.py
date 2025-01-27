@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """This class implements the default benchmark workflow.
@@ -119,6 +119,7 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
             self.peers.all_unit_states(),
             self.peers.this_unit(),
             self.config_manager,
+            is_leader=self.unit.is_leader(),
         )
         self.actions = ActionsHandler(self)
 
@@ -205,13 +206,12 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
         """Update the state of the charm."""
         if (next_state := self.lifecycle.next(None)) and self.lifecycle.current() != next_state:
             self.lifecycle.make_transition(next_state)
-            self.update_flags(next_state)
+        self.update_flags(self.lifecycle.current())
 
-    def update_flags(self, next_state: DPBenchmarkLifecycleState) -> None:
+    def update_flags(self, state: DPBenchmarkLifecycleState) -> None:
         """Reset certain flags according to the state."""
-        if next_state == DPBenchmarkLifecycleState.UNSET:
+        if not self.unit.is_leader():
+            return
+        if state == DPBenchmarkLifecycleState.UNSET:
             self.peers.state.test_name = None
-        if next_state != DPBenchmarkLifecycleState.STOPPED:
             self.peers.state.stop_directive = None
-        else:
-            self.peers.state.stop_directive = True
