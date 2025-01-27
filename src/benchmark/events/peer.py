@@ -38,6 +38,11 @@ class PeerRelationHandler(Object):
             self.charm.on[self.relation_name].relation_changed,
             self._on_peer_changed,
         )
+
+        self.framework.observe(
+            self.charm.on[self.relation_name].relation_joined,
+            self._on_new_peer_unit,
+        )
         self.framework.observe(
             self.charm.on[self.relation_name].relation_joined,
             self._on_new_peer_unit,
