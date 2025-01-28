@@ -127,7 +127,17 @@ class RelationState:
     @property
     def relation_data(self) -> MutableMapping[str, str]:
         """Returns the relation data."""
-        if not self.relation:DPE-6374-add-integration-tests
+        if not self.relation:
+            return {}
+        return self.relation.data[self.component]
+
+    @property
+    def remote_data(self) -> MutableMapping[str, str]:
+        """Returns the remote relation data."""
+        if not self.relation or self.scope != Scope.APP:
+            return {}
+        return self.relation.data[self.relation.app]
+
     def __bool__(self) -> bool:
         """Boolean evaluation based on the existence of self.relation."""
         try:
