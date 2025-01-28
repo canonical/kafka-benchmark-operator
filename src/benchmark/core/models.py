@@ -220,13 +220,12 @@ class PeerState(RelationState):
         if not self.relation or not self.relation.data or not self.peer_app:
             return
 
-        if not value and TEST_NAME_KEY in self.relation.data[self.peer_app]:
-            del self.relation.data[self.peer_app][TEST_NAME_KEY]
+        if not value:
+            if TEST_NAME_KEY in self.relation.data[self.peer_app]:
+                del self.relation.data[self.peer_app][TEST_NAME_KEY]
             return
 
-        # The empty value makes no sense but pyright was not accepting value: str | None
-        # to be assigned to the dict below.
-        self.relation.data[self.peer_app][TEST_NAME_KEY] = value or ""
+        self.relation.data[self.peer_app][TEST_NAME_KEY] = value
 
     @property
     def stop_directive(self) -> bool | None:
