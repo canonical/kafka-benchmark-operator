@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """The config manager class.
@@ -64,6 +64,7 @@ class ConfigManager:
 
             if self.is_leader:
                 self.peer_state.test_name = None
+                self.peer_state.stop_directive = None
 
         except Exception as e:
             logger.info(f"Error deleting topic: {e}")
@@ -71,7 +72,7 @@ class ConfigManager:
 
     def is_cleaned(self) -> bool:
         """Checks if the benchmark service has passed its "prepare" status."""
-        return bool(self.peer_state.test_name)
+        return self.peer_state.test_name is None
 
     def get_execution_options(
         self,
@@ -85,6 +86,9 @@ class ConfigManager:
             # It means we are not yet ready. Return None
             # This check also serves to ensure we have only one valid relation at the time
             return None
+
+        peer_list = self.peers
+        peer_list.sort()
         try:
             return DPBenchmarkWrapperOptionsModel(
                 test_name=self.peer_state.test_name or "",
@@ -96,7 +100,7 @@ class ConfigManager:
                 workload_name=self.config.workload_name,
                 report_interval=self.config.report_interval,
                 labels=self.labels,
-                peers=",".join(self.peers),
+                peers=",".join(peer_list),
             )
         except ValidationError:
             # Missing options
@@ -156,7 +160,7 @@ class ConfigManager:
         except Exception as e:
             logger.error(f"Failed to run the benchmark service: {e}")
             return False
-        return True
+        return self.is_running()
 
     def is_running(
         self,

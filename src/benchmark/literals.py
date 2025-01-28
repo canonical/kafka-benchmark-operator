@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """This module contains the constants and models used by the sysbench charm."""
@@ -10,6 +10,8 @@ VALID_LOG_LEVELS = ["info", "debug", "warning", "error", "critical"]
 
 # Peer relation keys
 LIFECYCLE_KEY = "lifecycle"
+STOP_DIRECTIVE_KEY = "stop_directive"
+TEST_NAME_KEY = "test_name"
 
 
 class Substrate(str, Enum):

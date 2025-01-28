@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """The lifecycle manager class."""
@@ -14,6 +14,7 @@ from ops.model import (
     Unit,
     WaitingStatus,
 )
+from typing_extensions import override
 
 from benchmark.core.models import PeerState
 from benchmark.literals import (
@@ -31,10 +32,12 @@ class LifecycleManager:
         peers: dict[Unit, PeerState],
         this_unit: Unit,
         config_manager: ConfigManager,
+        is_leader: bool,
     ):
         self.peers = peers
         self.this_unit = this_unit
         self.config_manager = config_manager
+        self.is_leader = is_leader
 
     def current(self) -> DPBenchmarkLifecycleState:
         """Return the current lifecycle state."""
@@ -52,7 +55,7 @@ class LifecycleManager:
         """
         if new_state == DPBenchmarkLifecycleState.UNSET:
             # We stop any service right away
-            if not self.config_manager.is_stopped() and not self.config_manager.stop():
+            if self.config_manager.is_running() and not self.config_manager.stop():
                 return False
             # And clean up the workload
             if not self.config_manager.is_cleaned() and not self.config_manager.clean():
@@ -68,7 +71,7 @@ class LifecycleManager:
 
         if new_state == DPBenchmarkLifecycleState.AVAILABLE:
             # workload should be prepared, check we are stopped or stop it
-            if not self.config_manager.is_stopped() and not self.config_manager.stop():
+            if self.config_manager.is_running() and not self.config_manager.stop():
                 return False
 
         if new_state == DPBenchmarkLifecycleState.RUNNING:
@@ -100,7 +103,7 @@ class LifecycleManager:
             DPBenchmarkLifecycleState.STOPPED,
         ]:
             # Stop the workload
-            if not self.config_manager.is_stopped() and not self.config_manager.stop():
+            if self.config_manager.is_running() and not self.config_manager.stop():
                 return False
 
         self.peers[self.this_unit].lifecycle = new_state.value
@@ -241,8 +244,6 @@ class LifecycleManager:
 class _LifecycleState(ABC):
     """The lifecycle state represents a single state and encapsulates the transition logic."""
 
-    state: DPBenchmarkLifecycleState
-
     def __init__(self, manager: LifecycleManager):
         self.manager = manager
 
@@ -253,22 +254,50 @@ class _LifecycleState(ABC):
         """Returns the next state given a transition request."""
         ...
 
+    @property
+    @abstractmethod
+    def state(self) -> DPBenchmarkLifecycleState:
+        """Return the state."""
+        ...
 
-class _StoppedLifecycleState(_LifecycleState):
+
+class _LifecycleStateBase(_LifecycleState):
+    """Lifecycle state base class with base, common rules."""
+
+    @override
+    def next(
+        self, transition: Optional[DPBenchmarkLifecycleTransition] = None
+    ) -> Optional["_LifecycleState"]:
+        """Returns the next state given a transition request."""
+        result = None
+        if not self.manager.config_manager.peer_state.test_name:
+            result = _UnsetLifecycleState(self.manager)
+
+        if self.manager.config_manager.peer_state.stop_directive:
+            result = _StoppedLifecycleState(self.manager)
+
+        if transition == DPBenchmarkLifecycleTransition.CLEAN:
+            result = _UnsetLifecycleState(self.manager)
+        return result if type(result) is not type(self) else None
+
+
+class _StoppedLifecycleState(_LifecycleStateBase):
     """The stopped lifecycle state."""
 
-    state = DPBenchmarkLifecycleState.STOPPED
-
+    @override
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if transition == DPBenchmarkLifecycleTransition.CLEAN:
-            return _UnsetLifecycleState(self.manager)
-
-        if self.manager.config_manager.is_running():
-            return _RunningLifecycleState(self.manager)
+        if state := super().next(transition):
+            return state
 
         if transition == DPBenchmarkLifecycleTransition.RUN:
+            return _RunningLifecycleState(self.manager)
+
+        if not self.manager.config_manager.peer_state.stop_directive:
+            return _RunningLifecycleState(self.manager)
+
+        if self.manager.config_manager.is_running():
             return _RunningLifecycleState(self.manager)
 
         if self.manager.config_manager.is_failed():
@@ -276,17 +305,22 @@ class _StoppedLifecycleState(_LifecycleState):
 
         return None
 
+    @property
+    @override
+    def state(self) -> DPBenchmarkLifecycleState:
+        """Return the state."""
+        return DPBenchmarkLifecycleState.STOPPED
 
-class _FailedLifecycleState(_LifecycleState):
+
+class _FailedLifecycleState(_LifecycleStateBase):
     """The failed lifecycle state."""
 
-    state = DPBenchmarkLifecycleState.FAILED
-
+    @override
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if transition == DPBenchmarkLifecycleTransition.CLEAN:
-            return _UnsetLifecycleState(self.manager)
+        if state := super().next(transition):
+            return state
 
         if self.manager.config_manager.is_running():
             return _RunningLifecycleState(self.manager)
@@ -296,17 +330,22 @@ class _FailedLifecycleState(_LifecycleState):
 
         return None
 
+    @property
+    @override
+    def state(self) -> DPBenchmarkLifecycleState:
+        """Return the state."""
+        return DPBenchmarkLifecycleState.FAILED
 
-class _FinishedLifecycleState(_LifecycleState):
+
+class _FinishedLifecycleState(_LifecycleStateBase):
     """The finished lifecycle state."""
 
-    state = DPBenchmarkLifecycleState.FINISHED
-
+    @override
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if transition == DPBenchmarkLifecycleTransition.CLEAN:
-            return _UnsetLifecycleState(self.manager)
+        if state := super().next(transition):
+            return state
 
         if transition == DPBenchmarkLifecycleTransition.STOP:
             return _StoppedLifecycleState(self.manager)
@@ -322,28 +361,24 @@ class _FinishedLifecycleState(_LifecycleState):
 
         return None
 
+    @property
+    @override
+    def state(self) -> DPBenchmarkLifecycleState:
+        """Return the state."""
+        return DPBenchmarkLifecycleState.FINISHED
 
-class _RunningLifecycleState(_LifecycleState):
+
+class _RunningLifecycleState(_LifecycleStateBase):
     """The running lifecycle state."""
 
-    state = DPBenchmarkLifecycleState.RUNNING
-
+    @override
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if transition == DPBenchmarkLifecycleTransition.CLEAN:
-            return _UnsetLifecycleState(self.manager)
+        if state := super().next(transition):
+            return state
 
         if transition == DPBenchmarkLifecycleTransition.STOP:
-            return _StoppedLifecycleState(self.manager)
-
-        if (peer_state := self.manager._peers_state()) and (
-            self.manager._compare_lifecycle_states(
-                peer_state,
-                DPBenchmarkLifecycleState.STOPPED,
-            )
-            == 0
-        ):
             return _StoppedLifecycleState(self.manager)
 
         if self.manager.config_manager.is_failed():
@@ -355,17 +390,22 @@ class _RunningLifecycleState(_LifecycleState):
 
         return None
 
+    @property
+    @override
+    def state(self) -> DPBenchmarkLifecycleState:
+        """Return the state."""
+        return DPBenchmarkLifecycleState.RUNNING
 
-class _AvailableLifecycleState(_LifecycleState):
+
+class _AvailableLifecycleState(_LifecycleStateBase):
     """The available lifecycle state."""
 
-    state = DPBenchmarkLifecycleState.AVAILABLE
-
+    @override
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if transition == DPBenchmarkLifecycleTransition.CLEAN:
-            return _UnsetLifecycleState(self.manager)
+        if state := super().next(transition):
+            return state
 
         if transition == DPBenchmarkLifecycleTransition.RUN:
             return _RunningLifecycleState(self.manager)
@@ -381,17 +421,22 @@ class _AvailableLifecycleState(_LifecycleState):
 
         return None
 
+    @property
+    @override
+    def state(self) -> DPBenchmarkLifecycleState:
+        """Return the state."""
+        return DPBenchmarkLifecycleState.AVAILABLE
 
-class _PreparingLifecycleState(_LifecycleState):
+
+class _PreparingLifecycleState(_LifecycleStateBase):
     """The preparing lifecycle state."""
 
-    state = DPBenchmarkLifecycleState.PREPARING
-
+    @override
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
-        if transition == DPBenchmarkLifecycleTransition.CLEAN:
-            return _UnsetLifecycleState(self.manager)
+        if state := super().next(transition):
+            return state
 
         if self.manager.config_manager.is_failed():
             return _FailedLifecycleState(self.manager)
@@ -401,15 +446,23 @@ class _PreparingLifecycleState(_LifecycleState):
 
         return None
 
+    @property
+    @override
+    def state(self) -> DPBenchmarkLifecycleState:
+        """Return the state."""
+        return DPBenchmarkLifecycleState.PREPARING
 
-class _UnsetLifecycleState(_LifecycleState):
+
+class _UnsetLifecycleState(_LifecycleStateBase):
     """The unset lifecycle state."""
 
-    state = DPBenchmarkLifecycleState.UNSET
-
+    @override
     def next(
         self, transition: DPBenchmarkLifecycleTransition | None = None
     ) -> Optional["_LifecycleState"]:
+        if state := super().next(transition):
+            return state
+
         if transition == DPBenchmarkLifecycleTransition.PREPARE:
             return _PreparingLifecycleState(self.manager)
 
@@ -432,6 +485,12 @@ class _UnsetLifecycleState(_LifecycleState):
             return _RunningLifecycleState(self.manager)
 
         return None
+
+    @property
+    @override
+    def state(self) -> DPBenchmarkLifecycleState:
+        """Return the state."""
+        return DPBenchmarkLifecycleState.UNSET
 
 
 class _LifecycleStateFactory:

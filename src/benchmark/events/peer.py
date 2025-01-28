@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """The peer event class."""
@@ -28,12 +28,21 @@ class PeerRelationHandler(Object):
         self.charm = charm
         self.relation = self.charm.model.get_relation(relation_name)
         self.relation_name = relation_name
-        self.state = PeerState(self.charm.unit, self.relation, self.relation.app)
+        self.state = PeerState(
+            self.charm.unit,
+            self.relation,
+            peer_app=self.relation.app if self.relation else None,
+        )
+
         self.framework.observe(
             self.charm.on[self.relation_name].relation_changed,
             self._on_peer_changed,
         )
 
+        self.framework.observe(
+            self.charm.on[self.relation_name].relation_joined,
+            self._on_new_peer_unit,
+        )
         self.framework.observe(
             self.charm.on[self.relation_name].relation_joined,
             self._on_new_peer_unit,
@@ -86,7 +95,7 @@ class PeerRelationHandler(Object):
             component=unit,
             relation=self.relation,
             scope=Scope.UNIT,
-            peer_app=self.relation.app,
+            peer_app=self.relation.app if self.relation else None,
         )
 
     def app_state(self) -> PeerState:
@@ -95,7 +104,7 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
-            peer_app=self.relation.app,
+            peer_app=self.relation.app if self.relation else None,
         )
 
     @property
@@ -108,7 +117,7 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
-            peer_app=self.relation.app,
+            peer_app=self.relation.app if self.relation else None,
         ).test_name
 
     @test_name.setter
@@ -118,9 +127,33 @@ class PeerRelationHandler(Object):
             component=self.relation.app,
             relation=self.relation,
             scope=Scope.APP,
-            peer_app=self.relation.app,
+            peer_app=self.relation.app if self.relation else None,
         )
         state.test_name = name
+
+    @property
+    def stop_directive(self) -> bool | None:
+        """Return the app data."""
+        if not self.relation:
+            return None
+
+        return PeerState(
+            component=self.relation.app,
+            relation=self.relation,
+            scope=Scope.APP,
+            peer_app=self.relation.app if self.relation else None,
+        ).stop_directive
+
+    @stop_directive.setter
+    def stop_directive(self, stop: bool | None) -> None:
+        """Return the app data."""
+        state = PeerState(
+            component=self.relation.app,
+            relation=self.relation,
+            scope=Scope.APP,
+            peer_app=self.relation.app if self.relation else None,
+        )
+        state.stop_directive = stop
 
     def all_unit_states(self) -> dict[Unit, PeerState]:
         """Return all the unit states."""

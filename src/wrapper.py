@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright 2024 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """This script runs the benchmark tool, collects its output and forwards to prometheus."""
@@ -23,6 +23,7 @@ from benchmark.wrapper.core import (
 )
 from benchmark.wrapper.main import MainWrapper
 from benchmark.wrapper.process import BenchmarkManager, BenchmarkProcess, WorkloadToProcessMapping
+from literals import INITIAL_PORT, PORT_JUMP
 
 
 class KafkaMainWrapper(MainWrapper):
@@ -140,7 +141,7 @@ class KafkaWorkloadToProcessMapping(WorkloadToProcessMapping):
         processes: list[BenchmarkProcess] = [
             KafkaBenchmarkProcess(
                 model=ProcessModel(
-                    cmd=f"""sudo bin/benchmark-worker -p {peer.split(":")[1]} -sp {int(peer.split(":")[1]) + 1}""",
+                    cmd=f"""sudo bin/benchmark-worker -p {port} -sp {port + 1}""",
                     cwd=os.path.join(
                         os.path.dirname(os.path.abspath(__file__)),
                         "../openmessaging-benchmark/",
@@ -149,7 +150,9 @@ class KafkaWorkloadToProcessMapping(WorkloadToProcessMapping):
                 args=self.args,
                 metrics=self.metrics,
             )
-            for peer in self.args.peers.split(",")
+            for port in range(
+                INITIAL_PORT, INITIAL_PORT + PORT_JUMP * self.args.parallel_processes, PORT_JUMP
+            )
         ]
         workers = ",".join([f"http://{peer}" for peer in self.args.peers.split(",")])
 
