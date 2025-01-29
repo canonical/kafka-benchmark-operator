@@ -20,6 +20,7 @@ from .helpers import (
     get_leader_unit_id,
     run_action,
 )
+from tenacity import Retrying, stop_after_attempt, wait_fixed
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +80,11 @@ async def test_prepare(ops_test: OpsTest, use_tls) -> None:
     """Test prepare action."""
     leader_id = await get_leader_unit_id(ops_test)
 
-    output = await run_action(ops_test, "prepare", f"{APP_NAME}/{leader_id}")
-    assert output.status == "completed"
+    for attempt in Retrying(
+        stop=stop_after_attempt(5), wait=wait_fixed(wait=60), reraise=True
+    ):
+        output = await run_action(ops_test, "prepare", f"{APP_NAME}/{leader_id}")
+        assert output.status == "completed"
 
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
