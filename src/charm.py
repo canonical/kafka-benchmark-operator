@@ -353,7 +353,7 @@ class KafkaConfigManager(ConfigManager):
                 stop=stop_after_attempt(4), wait=wait_fixed(wait=20), reraise=True
             ):
                 with attempt:
-                    if model := self.database_state.model():
+                    if (model := self.database_state.model()) and not self.is_prepared():
                         topic = NewTopic(
                             name=model.db_name,
                             num_partitions=self.config.parallel_processes * (len(self.peers) + 1),
