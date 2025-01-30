@@ -16,11 +16,11 @@ jobs:
       pull-requests: write # Need to create PR
       actions: write
 
+
   release:
     name: Release to Charmhub
     needs:
       - ci-tests
-      - build
     uses: canonical/data-platform-workflows/.github/workflows/release_charm.yaml@v26.0.0
     with:
       charmcraft-snap-channel: latest/beta/data-platform  # TODO: remove after charmcraft 3.3 stable release
