@@ -20,12 +20,11 @@ jobs:
     name: Release to Charmhub
     needs:
       - ci-tests
-      - build
     uses: canonical/data-platform-workflows/.github/workflows/release_charm.yaml@v26.0.0
     with:
       charmcraft-snap-channel: latest/beta/data-platform  # TODO: remove after charmcraft 3.3 stable release
       channel: latest/edge
-      artifact-prefix: ${{ needs.build.outputs.artifact-prefix }}
+      artifact-prefix: ${{ needs.ci-tests.outputs.artifact-prefix }}
     secrets:
       charmhub-token: ${{ secrets.CHARMHUB_TOKEN }}
     permissions:
