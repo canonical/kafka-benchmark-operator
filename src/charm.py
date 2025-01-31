@@ -348,22 +348,18 @@ class KafkaConfigManager(ConfigManager):
     def prepare(self) -> bool:
         """Prepare the benchmark service."""
         super().prepare()
-
-        # First, clean if a topic already existed
-        self.clean()
         try:
-            for attempt in Retrying(stop=stop_after_attempt(4), wait=wait_fixed(wait=15)):
+            for attempt in Retrying(
+                stop=stop_after_attempt(4), wait=wait_fixed(wait=20), reraise=True
+            ):
                 with attempt:
-                    if model := self.database_state.model():
+                    if (model := self.database_state.model()) and not self.is_prepared():
                         topic = NewTopic(
                             name=model.db_name,
                             num_partitions=self.config.parallel_processes * (len(self.peers) + 1),
                             replication_factor=self.client.replication_factor,
                         )
                         self.client.create_topic(topic)
-            else:
-                logger.warning("No database model found")
-                return False
         except Exception as e:
             logger.debug(f"Error creating topic: {e}")
 
