@@ -126,6 +126,7 @@ async def test_stop(ops_test: OpsTest, use_tls) -> None:
         raise_on_blocked=True,
         timeout=15 * 60,
     )
+    assert not check_service("dpe_benchmark", unit_id=leader_id)
 
 
 @pytest.mark.parametrize("use_tls", USE_TLS)

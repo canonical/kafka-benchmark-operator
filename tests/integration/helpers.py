@@ -37,36 +37,33 @@ MODEL_CONFIG = {
 }
 
 
-def check_service(svc_name: str, unit_id: int = 0, retry_if_fail: bool = True) -> str | None:
+def check_service(svc_name: str, unit_id: int = 0, retry_if_fail: bool = True) -> bool | None:
+    def __check():
+        try:
+            return (
+                subprocess.check_output(
+                    [
+                        "juju",
+                        "ssh",
+                        f"{APP_NAME}/{unit_id}",
+                        "--",
+                        "sudo",
+                        "systemctl",
+                        "is-active",
+                        svc_name,
+                    ],
+                    text=True,
+                ).rstrip()
+                == "active"
+            )
+        except Exception:
+            return False
+
     if not retry_if_fail:
-        return subprocess.check_output(
-            [
-                "juju",
-                "ssh",
-                f"{APP_NAME}/{unit_id}",
-                "--",
-                "sudo",
-                "systemctl",
-                "is-active",
-                svc_name,
-            ],
-            text=True,
-        )
+        return __check()
     for attempt in Retrying(stop=stop_after_delay(150), wait=wait_fixed(15)):
         with attempt:
-            return subprocess.check_output(
-                [
-                    "juju",
-                    "ssh",
-                    f"{APP_NAME}/{unit_id}",
-                    "--",
-                    "sudo",
-                    "systemctl",
-                    "is-active",
-                    svc_name,
-                ],
-                text=True,
-            )
+            return __check()
 
 
 async def run_action(
