@@ -16,7 +16,6 @@ jobs:
       pull-requests: write # Need to create PR
       actions: write
 
-
   release:
     name: Release to Charmhub
     needs:
