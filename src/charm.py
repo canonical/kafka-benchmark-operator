@@ -438,9 +438,9 @@ class KafkaConfigManager(ConfigManager):
         # We may be sitting behind k8s, in this case, we need to do a more careful calculation
         # of the host count, and hence, the replication factor
         if client and client.describe_cluster():
-            replication_factor = len(client.describe_cluster().get("brokers", 1)) - 1
+            replication_factor = len(client.describe_cluster().get("brokers", []))
         if replication_factor >= 1:
-            client.replication_factor = replication_factor - 1
+            client.replication_factor = min(replication_factor - 1, 3)
         return client
 
 
