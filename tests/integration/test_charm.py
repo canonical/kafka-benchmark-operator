@@ -109,7 +109,7 @@ async def test_build_and_deploy_k8s_only(
         application_name=KAFKA_K8S,
     )
     await ops_test.model.consume(f"admin/{model_db.name}.kafka-client")
-    await ops_test.model.integrate("kafka-client", kafka_benchmark_charm)
+    await ops_test.model.integrate("kafka-client", f"{APP_NAME}:kafka")
 
     if use_tls:
         await ops_test.model.deploy(
@@ -117,7 +117,7 @@ async def test_build_and_deploy_k8s_only(
             num_units=1,
             series=SERIES,
         )
-        await ops_test.model.integrate(kafka_benchmark_charm, "self-signed-certificates")
+        await ops_test.model.integrate(APP_NAME, "self-signed-certificates")
 
         await ops_test.model.create_offer(
             endpoint="certificates",
@@ -125,7 +125,7 @@ async def test_build_and_deploy_k8s_only(
             application_name="self-signed-certificates",
         )
         await model_db.consume(f"admin/{ops_test.model.name}.certificates")
-        await ops_test.model.integrate("certificates", KAFKA_K8S)
+        await ops_test.model.integrate("certificates", f"{KAFKA_K8S}:certificates")
 
     await model_db.wait_for_idle(apps=[KAFKA_K8S], status="active", timeout=2000)
     await ops_test.model.wait_for_idle(apps=[APP_NAME], status="waiting", timeout=2000)
