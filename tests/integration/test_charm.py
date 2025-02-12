@@ -125,7 +125,7 @@ async def test_build_and_deploy_k8s_only(
             application_name="self-signed-certificates",
         )
         await model_db.consume(f"admin/{ops_test.model.name}.certificates")
-        await ops_test.model.integrate("certificates", f"{KAFKA_K8S}:certificates")
+        await model_db.integrate("certificates", f"{KAFKA_K8S}:certificates")
 
     await model_db.wait_for_idle(apps=[KAFKA_K8S], status="active", timeout=2000)
     await ops_test.model.wait_for_idle(apps=[APP_NAME], status="waiting", timeout=2000)

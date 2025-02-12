@@ -77,7 +77,7 @@ import logging
 import time
 import sys
 from functools import cached_property
-from typing import Generator, List, Optional
+from typing import Generator, List, Optional, Any
 
 from kafka import KafkaAdminClient, KafkaConsumer, KafkaProducer
 from kafka.admin import NewTopic
@@ -183,6 +183,10 @@ class KafkaClient:
             auto_offset_reset="earliest",
             consumer_timeout_ms=15000,
         )
+
+    def describe_cluster(self) -> Any:
+        """Returns the cluster metadata."""
+        return self._admin_client.describe_cluster()
 
     def create_topic(self, topic: NewTopic) -> None:
         """Creates a new topic on the Kafka cluster.
