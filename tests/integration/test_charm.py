@@ -15,8 +15,8 @@ from .helpers import (
     DEFAULT_NUM_UNITS,
     K8S_DB_MODEL_NAME,
     KAFKA,
-    KAFKA_K8S,
     KAFKA_CHANNEL,
+    KAFKA_K8S,
     KRAFT_CONFIG,
     MICROK8S_CLOUD_NAME,
     MODEL_CONFIG,
@@ -98,7 +98,7 @@ async def test_build_and_deploy_k8s_only(
     await model_db.deploy(
         KAFKA_K8S,
         channel=KAFKA_CHANNEL,
-        config=KRAFT_CONFIG,
+        config=KRAFT_CONFIG | {"expose_external": "nodeport"},
         num_units=DEFAULT_NUM_UNITS,
         series=SERIES,
         trust=True,
@@ -109,7 +109,7 @@ async def test_build_and_deploy_k8s_only(
         application_name=KAFKA_K8S,
     )
     await ops_test.model.consume(f"admin/{model_db.name}.kafka-client")
-    await ops_test.model.integrate(f"admin/{model_db.name}.kafka-client", kafka_benchmark_charm)
+    await ops_test.model.integrate("kafka-client", kafka_benchmark_charm)
 
     if use_tls:
         await ops_test.model.deploy(
@@ -125,7 +125,7 @@ async def test_build_and_deploy_k8s_only(
             application_name="self-signed-certificates",
         )
         await model_db.consume(f"admin/{ops_test.model.name}.certificates")
-        await ops_test.model.integrate(f"admin/{ops_test.model.name}.certificates", KAFKA_K8S)
+        await ops_test.model.integrate("certificates", KAFKA_K8S)
 
     await model_db.wait_for_idle(apps=[KAFKA_K8S], status="active", timeout=2000)
     await ops_test.model.wait_for_idle(apps=[APP_NAME], status="waiting", timeout=2000)
