@@ -20,9 +20,12 @@ MICROK8S_CLOUD_NAME = "cloudk8s"
 CONFIG_OPTS = {"workload_name": "test_mode", "parallel_processes": 1}
 SERIES = "jammy"
 KAFKA = "kafka"
+KAFKA_K8S = "kafka-k8s"
 APP_NAME = "kafka-benchmark"
 KAFKA_CHANNEL = "3/edge"
 DEFAULT_NUM_UNITS = 2
+K8S_DB_MODEL_NAME = "database"
+MICROK8S_CLOUD_NAME = "uk8s"
 
 
 KRAFT_CONFIG = {
