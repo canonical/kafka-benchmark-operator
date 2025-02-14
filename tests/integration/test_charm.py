@@ -13,14 +13,16 @@ from .helpers import (
     APP_NAME,
     CONFIG_OPTS,
     DEFAULT_NUM_UNITS,
+    DEPLOY_MARKS,
     K8S_DB_MODEL_NAME,
+    K8S_MARKS,
     KAFKA,
     KAFKA_CHANNEL,
     KAFKA_K8S,
     KRAFT_CONFIG,
-    MICROK8S_CLOUD_NAME,
     MODEL_CONFIG,
     SERIES,
+    VM_MARKS,
     check_service,
     get_leader_unit_id,
     run_action,
@@ -30,46 +32,6 @@ logger = logging.getLogger(__name__)
 
 
 model_db = None
-
-
-DEPLOY_MARKS = [
-    (
-        pytest.param(
-            use_tls,
-            cloud,
-            id=str(use_tls) + f"-{cloud}",
-            marks=pytest.mark.group(str(use_tls) + f"-{cloud}"),
-        )
-    )
-    for use_tls in [True, False]
-    for cloud in ["vm", MICROK8S_CLOUD_NAME]
-]
-
-K8S_MARKS = [
-    (
-        pytest.param(
-            use_tls,
-            cloud,
-            id=str(use_tls) + f"-{cloud}",
-            marks=pytest.mark.group(str(use_tls) + f"-{cloud}"),
-        )
-    )
-    for use_tls in [True, False]
-    for cloud in [MICROK8S_CLOUD_NAME]
-]
-
-VM_MARKS = [
-    (
-        pytest.param(
-            use_tls,
-            cloud,
-            id=str(use_tls) + f"-{cloud}",
-            marks=pytest.mark.group(str(use_tls) + f"-{cloud}"),
-        )
-    )
-    for use_tls in [True, False]
-    for cloud in ["vm"]
-]
 
 
 @pytest.mark.parametrize("use_tls,cloud", K8S_MARKS)
