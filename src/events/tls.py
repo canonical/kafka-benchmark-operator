@@ -19,8 +19,8 @@ from ops.model import Application, ModelError, Secret, SecretNotFoundError
 from benchmark.base_charm import DPBenchmarkCharmBase
 from benchmark.core.workload_base import WorkloadBase
 from benchmark.events.handler import RelationHandler
+from core.models import JavaWorkloadPaths
 from literals import TRUSTED_CA_RELATION, TRUSTSTORE_LABEL, TS_PASSWORD_KEY
-from models import JavaWorkloadPaths
 
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)

@@ -14,14 +14,15 @@ import subprocess
 import time
 from abc import ABC, abstractmethod
 
-from core import (
+from pydantic import BaseModel
+
+from benchmark.wrapper.core import (
     BenchmarkCommand,
     BenchmarkMetrics,
     ProcessModel,
     ProcessStatus,
     WorkloadCLIArgsModel,
 )
-from pydantic import BaseModel
 
 VALID_LOG_LEVELS = ["info", "debug", "warning", "error", "critical"]
 

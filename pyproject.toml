@@ -141,7 +141,7 @@ convention = "google"
 
 [tool.pyright]
 include = ["src"]
-extraPaths = ["./lib"]
+extraPaths = ["./lib", "src"]
 pythonVersion = "3.10"
 pythonPlatform = "All"
 typeCheckingMode = "basic"

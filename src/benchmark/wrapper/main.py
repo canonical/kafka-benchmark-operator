@@ -7,9 +7,10 @@
 import logging
 import signal
 
-from core import WorkloadCLIArgsModel
-from process import WorkloadToProcessMapping
 from prometheus_client import start_http_server
+
+from benchmark.wrapper.core import WorkloadCLIArgsModel
+from benchmark.wrapper.process import WorkloadToProcessMapping
 
 
 class MainWrapper:

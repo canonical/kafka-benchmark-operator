@@ -5,9 +5,16 @@
 
 import logging
 import os
+from typing import Any
 
+from ops.model import Application, Relation, Unit
+from overrides import override
 from pydantic import BaseModel, validator
 
+from benchmark.core.models import (
+    DatabaseState,
+    DPBenchmarkBaseDatabaseModel,
+)
 from benchmark.core.structured_config import BenchmarkCharmConfig
 from benchmark.core.workload_base import WorkloadTemplatePaths
 from benchmark.literals import BENCHMARK_WORKLOAD_PATH
@@ -79,3 +86,49 @@ class KafkaBenchmarkCharmConfig(BenchmarkCharmConfig):
             raise ValueError(f"Value not one of {str(WorkloadTypeParameters.keys())}")
 
         return value
+
+
+class KafkaDatabaseState(DatabaseState):
+    """State collection for the database relation."""
+
+    def __init__(
+        self,
+        component: Application | Unit,
+        relation: Relation | None,
+        data: dict[str, Any] = {},
+        tls_relation: Relation
+        | None = None,  # TODO: remove once Kafka emits the TLS data via client relation
+    ):
+        super().__init__(
+            component=component,
+            relation=relation,
+            data=data,
+        )
+        self.database_key = "topic"
+        # TODO: remove once Kafka emits the TLS data via client relation
+        self.tls_relation = tls_relation
+
+    @property
+    @override
+    def tls_ca(self) -> str | None:
+        """Return the TLS CA."""
+        if not super().tls_ca:
+            return None
+        self.tls_relation
+
+    @override
+    def model(self) -> DPBenchmarkBaseDatabaseModel | None:
+        """Returns the database model."""
+        if not self.relation or not (endpoints := self.remote_data.get("endpoints")):
+            return None
+        if not (dbmodel := super().model()):
+            return None
+        return DPBenchmarkBaseDatabaseModel(
+            hosts=endpoints.split(","),
+            unix_socket=dbmodel.unix_socket,
+            username=dbmodel.username,
+            password=dbmodel.password,
+            db_name=dbmodel.db_name,
+            tls=self.tls,
+            tls_ca=self.tls_ca,
+        )
