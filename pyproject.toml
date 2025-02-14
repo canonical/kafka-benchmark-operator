@@ -140,8 +140,8 @@ max-complexity = 10
 convention = "google"
 
 [tool.pyright]
-include = ["./src"]
-extraPaths = ["./lib", "./src"]
+include = ["src"]
+extraPaths = ["./lib", "src"]
 pythonVersion = "3.10"
 pythonPlatform = "All"
 typeCheckingMode = "basic"
