@@ -28,14 +28,13 @@ from charms.data_platform_libs.v0.data_interfaces import KafkaRequires
 from charms.kafka.v0.client import KafkaClient, NewTopic
 from ops.charm import CharmBase
 from ops.framework import EventBase
-from ops.model import Application, BlockedStatus, Relation, Unit
+from ops.model import BlockedStatus, Unit
 from overrides import override
 from tenacity import Retrying, stop_after_attempt, wait_fixed
 
 from benchmark.base_charm import DPBenchmarkCharmBase
 from benchmark.core.models import (
     DatabaseState,
-    DPBenchmarkBaseDatabaseModel,
     PeerState,
 )
 from benchmark.core.pebble_workload_base import DPBenchmarkPebbleWorkloadBase
@@ -52,6 +51,10 @@ from benchmark.literals import (
 )
 from benchmark.managers.config import ConfigManager
 from benchmark.managers.lifecycle import LifecycleManager
+from core.models import KafkaBenchmarkCharmConfig, KafkaDatabaseState, WorkloadTypeParameters
+
+# TODO: This line must go away once Kafka starts sharing its certificates via client relation
+from events.tls import JavaTlsHandler, JavaTlsStoreManager
 from literals import (
     CLIENT_RELATION_NAME,
     INITIAL_PORT,
@@ -61,59 +64,9 @@ from literals import (
     TOPIC_NAME,
     WORKER_PARAMS_YAML_FILE,
 )
-from models import KafkaBenchmarkCharmConfig, WorkloadTypeParameters
-
-# TODO: This line must go away once Kafka starts sharing its certificates via client relation
-from tls import JavaTlsHandler, JavaTlsStoreManager
 
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)
-
-
-class KafkaDatabaseState(DatabaseState):
-    """State collection for the database relation."""
-
-    def __init__(
-        self,
-        component: Application | Unit,
-        relation: Relation | None,
-        data: dict[str, Any] = {},
-        tls_relation: Relation
-        | None = None,  # TODO: remove once Kafka emits the TLS data via client relation
-    ):
-        super().__init__(
-            component=component,
-            relation=relation,
-            data=data,
-        )
-        self.database_key = "topic"
-        # TODO: remove once Kafka emits the TLS data via client relation
-        self.tls_relation = tls_relation
-
-    @property
-    @override
-    def tls_ca(self) -> str | None:
-        """Return the TLS CA."""
-        if not super().tls_ca:
-            return None
-        self.tls_relation
-
-    @override
-    def model(self) -> DPBenchmarkBaseDatabaseModel | None:
-        """Returns the database model."""
-        if not self.relation or not (endpoints := self.remote_data.get("endpoints")):
-            return None
-        if not (dbmodel := super().model()):
-            return None
-        return DPBenchmarkBaseDatabaseModel(
-            hosts=endpoints.split(","),
-            unix_socket=dbmodel.unix_socket,
-            username=dbmodel.username,
-            password=dbmodel.password,
-            db_name=dbmodel.db_name,
-            tls=self.tls,
-            tls_ca=self.tls_ca,
-        )
 
 
 class KafkaDatabaseRelationHandler(DatabaseRelationHandler):
