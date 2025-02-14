@@ -425,7 +425,7 @@ class KafkaConfigManager(ConfigManager):
             )
 
         host_count = len(state.hosts) if state.hosts else 1
-        return KafkaClient(
+        client = KafkaClient(
             servers=state.hosts or [],
             username=state.username,
             password=state.password,
@@ -434,6 +434,14 @@ class KafkaConfigManager(ConfigManager):
             certfile_path=None,
             replication_factor=host_count - 1,
         )
+
+        # We may be sitting behind k8s, in this case, we need to do a more careful calculation
+        # of the host count, and hence, the replication factor
+        if client and client.describe_cluster():
+            replication_factor = len(client.describe_cluster().get("brokers", []))
+        if replication_factor >= 1:
+            client.replication_factor = min(replication_factor - 1, 3)
+        return client
 
 
 class KafkaBenchmarkActionsHandler(ActionsHandler):
