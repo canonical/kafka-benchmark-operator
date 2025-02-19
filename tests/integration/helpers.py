@@ -7,6 +7,7 @@ import logging
 import subprocess
 from types import SimpleNamespace
 
+import pytest
 from pytest_operator.plugin import OpsTest
 from tenacity import Retrying, stop_after_delay, wait_fixed
 
@@ -20,9 +21,52 @@ MICROK8S_CLOUD_NAME = "cloudk8s"
 CONFIG_OPTS = {"workload_name": "test_mode", "parallel_processes": 1}
 SERIES = "jammy"
 KAFKA = "kafka"
+KAFKA_K8S = "kafka-k8s"
 APP_NAME = "kafka-benchmark"
 KAFKA_CHANNEL = "3/edge"
 DEFAULT_NUM_UNITS = 2
+K8S_DB_MODEL_NAME = "database"
+MICROK8S_CLOUD_NAME = "uk8s"
+
+
+DEPLOY_MARKS = [
+    (
+        pytest.param(
+            use_tls,
+            cloud,
+            id=str(use_tls) + f"-{cloud}",
+            marks=pytest.mark.group(str(use_tls) + f"-{cloud}"),
+        )
+    )
+    for use_tls in [True, False]
+    for cloud in ["vm", MICROK8S_CLOUD_NAME]
+]
+
+K8S_MARKS = [
+    (
+        pytest.param(
+            use_tls,
+            cloud,
+            id=str(use_tls) + f"-{cloud}",
+            marks=pytest.mark.group(str(use_tls) + f"-{cloud}"),
+        )
+    )
+    for use_tls in [True, False]
+    for cloud in [MICROK8S_CLOUD_NAME]
+]
+
+VM_MARKS = [
+    (
+        pytest.param(
+            use_tls,
+            cloud,
+            id=str(use_tls) + f"-{cloud}",
+            marks=pytest.mark.group(str(use_tls) + f"-{cloud}"),
+        )
+    )
+    for use_tls in [True, False]
+    for cloud in ["vm"]
+]
 
 
 KRAFT_CONFIG = {
