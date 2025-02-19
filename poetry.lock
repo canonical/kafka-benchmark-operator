@@ -201,18 +201,18 @@ uvloop = ["uvloop (>=0.15.2)"]
 
 [[package]]
 name = "boto3"
-version = "1.36.18"
+version = "1.36.20"
 description = "The AWS SDK for Python"
 optional = false
 python-versions = ">=3.8"
 groups = ["integration"]
 files = [
-    {file = "boto3-1.36.18-py3-none-any.whl", hash = "sha256:084ff25af2d7bda3102d6367f5453e2e83f8cde1da73079ea144595b03cb9400"},
-    {file = "boto3-1.36.18.tar.gz", hash = "sha256:be8e32c34d7b103a64fafdd277fa1ec136733b4bbfc11dcfa597efa36a820b37"},
+    {file = "boto3-1.36.20-py3-none-any.whl", hash = "sha256:e132e31232ee107f1c187f566d96863a907433e5bdd8d8928effddd30a96242f"},
+    {file = "boto3-1.36.20.tar.gz", hash = "sha256:4a27ffc0543c2a429600542047f00c6a1e95270139d36d8cc636e9cc9a78b835"},
 ]
 
 [package.dependencies]
-botocore = ">=1.36.18,<1.37.0"
+botocore = ">=1.36.20,<1.37.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.11.0,<0.12.0"
 
@@ -221,14 +221,14 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.36.18"
+version = "1.36.20"
 description = "Low-level, data-driven core of boto 3."
 optional = false
 python-versions = ">=3.8"
 groups = ["integration"]
 files = [
-    {file = "botocore-1.36.18-py3-none-any.whl", hash = "sha256:7898d109affd9231c555e71fda88308c1da2db8d39e83d33eb8cb40ebf1ba82f"},
-    {file = "botocore-1.36.18.tar.gz", hash = "sha256:ddadafe460e91f11677720a2fcc3ea09c4abb914de2b000da7ba46b4c97da3d7"},
+    {file = "botocore-1.36.20-py3-none-any.whl", hash = "sha256:0110bf2208e4569659d0ccfca94baa4999501334397987b02712a94493cbf48b"},
+    {file = "botocore-1.36.20.tar.gz", hash = "sha256:3815a05518ff03a8dbc8d5a3c29b95889409a25ac87a282067f6e26fefb7c40a"},
 ]
 
 [package.dependencies]
@@ -1010,18 +1010,21 @@ docs = ["sphinx (==5.3.0)", "sphinx_rtd_theme", "sphinxcontrib-asyncio"]
 
 [[package]]
 name = "kafka-python"
-version = "2.0.2"
+version = "2.0.3"
 description = "Pure Python client for Apache Kafka"
 optional = false
 python-versions = "*"
 groups = ["main"]
 files = [
-    {file = "kafka-python-2.0.2.tar.gz", hash = "sha256:04dfe7fea2b63726cd6f3e79a2d86e709d608d74406638c5da33a01d45a9d7e3"},
-    {file = "kafka_python-2.0.2-py2.py3-none-any.whl", hash = "sha256:2d92418c7cb1c298fa6c7f0fb3519b520d0d7526ac6cb7ae2a4fc65a51a94b6e"},
+    {file = "kafka-python-2.0.3.tar.gz", hash = "sha256:9ef48bc21f4ac78d80b9f424e5f0f0cd63a29652f5e5f4369960434806f1bbdd"},
+    {file = "kafka_python-2.0.3-py2.py3-none-any.whl", hash = "sha256:ff28bee2430359256d947cffaf951b95e9c66697b59af28014d5b28e160a6084"},
 ]
 
 [package.extras]
 crc32c = ["crc32c"]
+lz4 = ["lz4"]
+snappy = ["python-snappy"]
+zstd = ["zstandard"]
 
 [[package]]
 name = "kubernetes"
