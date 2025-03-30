@@ -107,7 +107,7 @@ def check_service(
 
             logger.info(f"check_service - {response=}")
 
-            return "active" in response
+            return "active" in response and "inactive" not in response
 
         except Exception:
             return False
