@@ -12,7 +12,6 @@ from .helpers import (
     APP_NAME,
     CONFIG_OPTS,
     DEFAULT_NUM_UNITS,
-    KAFKA,
     KAFKA_CHANNEL,
     KAFKA_K8S,
     KRAFT_CONFIG,
@@ -51,7 +50,7 @@ async def test_build_and_deploy_k8s_internal(ops_test: OpsTest, kafka_benchmark_
         config=CONFIG_OPTS,
     )
 
-    await ops_test.model.integrate(KAFKA, APP_NAME)
+    await ops_test.model.integrate(KAFKA_K8S, APP_NAME)
 
     await ops_test.model.wait_for_idle(apps=[APP_NAME], status="waiting", timeout=2000)
     await ops_test.wait_for_idle(apps=[KAFKA_K8S], status="active", timeout=2000)
