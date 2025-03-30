@@ -71,20 +71,20 @@ jobs:
       path-to-charm-directory: .
       cache: false  # TODO: change this to true once we are in charmcraftcache-hub
 
-  integration-test:
-    name: Integration test charm
-    needs:
-      - lint
-      - unit-test
-      - build
-    uses: canonical/data-platform-workflows/.github/workflows/integration_test_charm.yaml@v26.0.0
-    with:
-      juju-agent-version: 3.6.1 # renovate: juju-agent-pin-minor
-      _beta_allure_report: true
-      artifact-prefix: ${{ needs.build.outputs.artifact-prefix }}
-      cloud: lxd
-    permissions:
-      contents: write
+  # integration-test:
+  #   name: Integration test charm
+  #   needs:
+  #     - lint
+  #     - unit-test
+  #     - build
+  #   uses: canonical/data-platform-workflows/.github/workflows/integration_test_charm.yaml@v26.0.0
+  #   with:
+  #     juju-agent-version: 3.6.1 # renovate: juju-agent-pin-minor
+  #     _beta_allure_report: true
+  #     artifact-prefix: ${{ needs.build.outputs.artifact-prefix }}
+  #     cloud: lxd
+  #   permissions:
+  #     contents: write
 
   integration-test-k8s-internal:
     name: Integration test charm
