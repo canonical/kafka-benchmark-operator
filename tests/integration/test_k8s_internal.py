@@ -26,7 +26,17 @@ logger = logging.getLogger(__name__)
 
 INTERNAL_K8S_MODEL_NAME = K8S_DB_MODEL_NAME + "2"
 
+MARKS = [
+    (
+        pytest.param(
+            id="k8s_internal",
+            marks=pytest.mark.group("k8s_internal"),
+        )
+    )
+]
 
+
+@pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy_k8s_internal(microk8s, kafka_benchmark_charm) -> None:
     logger.info(f"Creating k8s model {INTERNAL_K8S_MODEL_NAME}")
@@ -60,6 +70,7 @@ async def test_build_and_deploy_k8s_internal(microk8s, kafka_benchmark_charm) ->
     await model_db.wait_for_idle(apps=[KAFKA_K8S], status="active", timeout=2000)
 
 
+@pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
 async def test_prepare() -> None:
     """Test prepare action."""
@@ -76,6 +87,7 @@ async def test_prepare() -> None:
     )
 
 
+@pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
 async def test_run() -> None:
     """Test run action."""
@@ -91,6 +103,7 @@ async def test_run() -> None:
     assert check_service(svc_name="dpe-benchmark")
 
 
+@pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
 async def test_stop() -> None:
     """Test stop action."""
@@ -106,6 +119,7 @@ async def test_stop() -> None:
     assert not check_service(svc_name="dpe-benchmark")
 
 
+@pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
 async def test_restart() -> None:
     """Test stop and restart the benchmark."""
@@ -121,6 +135,7 @@ async def test_restart() -> None:
     assert check_service("dpe-benchmark")
 
 
+@pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
 async def test_clean() -> None:
     """Test cleanup action."""
