@@ -24,6 +24,8 @@ provides:
   cos-agent:
     interface: cos_agent
     limit: 1
+  metrics-endpoint:
+    interface: prometheus_scrape
 
 requires:
   kafka:

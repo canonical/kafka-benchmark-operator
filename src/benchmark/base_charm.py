@@ -15,11 +15,11 @@ This charm should also be the main entry point to all the modelling of your benc
 """
 
 import logging
-import subprocess
 from typing import Any
 
 from charms.data_platform_libs.v0.data_models import TypedCharmBase
 from charms.grafana_agent.v0.cos_agent import COSAgentProvider
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from ops.charm import CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.model import BlockedStatus
@@ -36,7 +36,9 @@ from benchmark.literals import (
     COS_AGENT_RELATION,
     METRICS_PORT,
     PEER_RELATION,
+    SUBSTRATE,
     DPBenchmarkMissingOptionsError,
+    Substrate,
 )
 from benchmark.managers.config import ConfigManager
 from benchmark.managers.lifecycle import LifecycleManager
@@ -60,14 +62,13 @@ class DPBenchmarkEvents(CharmEvents):
     check_upload = EventSource(DPBenchmarkCheckUploadEvent)
 
 
-def workload_build(workload_params_template: str) -> WorkloadBase:
-    """Build the workload."""
-    try:
-        # Really simple check to see if we have systemd
-        subprocess.check_output(["systemctl", "--help"])
-    except subprocess.CalledProcessError:
-        return DPBenchmarkPebbleWorkloadBase(workload_params_template)
-    return DPBenchmarkSystemdWorkloadBase(workload_params_template)
+def get_workload(workload_params_template: str) -> WorkloadBase:
+    """Gets the correct workload, interpreted from the current substrate."""
+    return (
+        DPBenchmarkPebbleWorkloadBase(workload_params_template=workload_params_template)
+        if SUBSTRATE == Substrate.KUBERNETES
+        else DPBenchmarkSystemdWorkloadBase(workload_params_template=workload_params_template)
+    )
 
 
 class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
@@ -76,12 +77,19 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
     on = DPBenchmarkEvents()  # pyright: ignore [reportAssignmentType]
 
     RESOURCE_DEB_NAME = "benchmark-deb"
-    workload_params_template = ""
-
     config_type = BenchmarkCharmConfig
 
-    def __init__(self, *args, db_relation_name: str, workload: WorkloadBase | None = None):
+    def __init__(
+        self,
+        *args,
+        db_relation_name: str,
+        workload: WorkloadBase | None = None,
+        workload_params_template_file: str = "",
+    ):
         super().__init__(*args)
+        with open(workload_params_template_file) as f:
+            self.workload_params_template = f.read()
+
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.update_status, self._on_update_status)
@@ -93,7 +101,9 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
 
         # Trigger an update status as we want to know if the relation is ready
         self.framework.observe(self.on[db_relation_name].relation_changed, self._on_update_status)
-        self.workload = workload or workload_build(self.workload_params_template)
+        self.workload = workload or get_workload(
+            workload_params_template=self.workload_params_template
+        )
 
         self._grafana_agent = COSAgentProvider(
             self,
@@ -104,6 +114,8 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
             ],
             scrape_configs=self.scrape_config,
         )
+        self.metrics_endpoint = MetricsEndpointProvider(self, jobs=self.scrape_config())
+
         self.labels = f"{self.model.name},{self.unit.name}"
 
         self.config_manager = ConfigManager(
@@ -129,7 +141,7 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
     #
     ###########################################################################
 
-    def _on_install(self, event: EventBase) -> None:
+    def _on_install(self, _: EventBase) -> None:
         """Install event."""
         self.workload.install()
         self.peers.state.lifecycle = DPBenchmarkLifecycleState.UNSET
@@ -206,6 +218,7 @@ class DPBenchmarkCharmBase(TypedCharmBase[BenchmarkCharmConfig]):
         """Update the state of the charm."""
         if (next_state := self.lifecycle.next(None)) and self.lifecycle.current() != next_state:
             self.lifecycle.make_transition(next_state)
+
         self.update_flags(self.lifecycle.current())
 
     def update_flags(self, state: DPBenchmarkLifecycleState) -> None:

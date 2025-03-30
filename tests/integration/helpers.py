@@ -6,6 +6,7 @@
 import logging
 import subprocess
 from types import SimpleNamespace
+from typing import Literal
 
 import pytest
 from pytest_operator.plugin import OpsTest
@@ -81,25 +82,33 @@ MODEL_CONFIG = {
 }
 
 
-def check_service(svc_name: str, unit_id: int = 0, retry_if_fail: bool = True) -> bool | None:
+def check_service(
+    svc_name: str,
+    unit_id: int = 0,
+    retry_if_fail: bool = True,
+    service_type: Literal["systemd", "pebble"] = "systemd",
+) -> bool | None:
     def __check():
+        if service_type == "pebble":
+            cmd = ["/charm/bin/pebble", "services", svc_name]
+        else:
+            cmd = ["--", "sudo", "systemctl", "is-active", svc_name]
+
         try:
-            return (
-                subprocess.check_output(
-                    [
-                        "juju",
-                        "ssh",
-                        f"{APP_NAME}/{unit_id}",
-                        "--",
-                        "sudo",
-                        "systemctl",
-                        "is-active",
-                        svc_name,
-                    ],
-                    text=True,
-                ).rstrip()
-                == "active"
-            )
+            response = subprocess.check_output(
+                [
+                    "juju",
+                    "ssh",
+                    f"{APP_NAME}/{unit_id}",
+                ]
+                + cmd,
+                text=True,
+            ).rstrip()
+
+            logger.info(f"check_service - {response=}")
+
+            return "active" in response
+
         except Exception:
             return False
 

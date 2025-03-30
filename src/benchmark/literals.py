@@ -3,6 +3,7 @@
 
 """This module contains the constants and models used by the sysbench charm."""
 
+import os
 from enum import Enum
 
 VALID_LOG_LEVELS = ["info", "debug", "warning", "error", "critical"]
@@ -18,7 +19,10 @@ class Substrate(str, Enum):
     """Substrate of the benchmark."""
 
     VM = "vm"
-    K8S = "k8s"
+    KUBERNETES = "k8s"
+
+
+SUBSTRATE = Substrate.KUBERNETES if os.getenv("KUBERNETES_SERVICE_HOST") else Substrate.VM
 
 
 class Scope(str, Enum):

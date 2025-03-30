@@ -146,7 +146,10 @@ class WorkloadBase(ABC):
 
     def remove(self, path: str) -> None:
         """Remove the specified file."""
-        os.remove(path)
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
     @abstractmethod
     def exec(
