@@ -4,15 +4,14 @@
 
 import logging
 
-import juju
 import pytest
+from pytest_operator.plugin import OpsTest
 from tenacity import Retrying, stop_after_attempt, wait_fixed
 
 from .helpers import (
     APP_NAME,
     CONFIG_OPTS,
     DEFAULT_NUM_UNITS,
-    K8S_DB_MODEL_NAME,
     KAFKA,
     KAFKA_CHANNEL,
     KAFKA_K8S,
@@ -24,31 +23,19 @@ from .helpers import (
 
 logger = logging.getLogger(__name__)
 
-INTERNAL_K8S_MODEL_NAME = K8S_DB_MODEL_NAME + "2"
 
 MARKS = [
-    (
-        pytest.param(
-            id="k8s_internal",
-            marks=pytest.mark.group("k8s_internal"),
-        )
+    pytest.param(
+        id="k8s_internal",
+        marks=pytest.mark.group("k8s_internal"),
     )
 ]
 
 
 @pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
-async def test_build_and_deploy_k8s_internal(microk8s, kafka_benchmark_charm) -> None:
-    logger.info(f"Creating k8s model {INTERNAL_K8S_MODEL_NAME}")
-    controller = juju.controller.Controller()
-    await controller.connect()
-    await controller.add_model(INTERNAL_K8S_MODEL_NAME, cloud_name=microk8s.cloud_name)
-
-    global model_db
-    model_db = juju.model.Model()
-    await model_db.connect(model_name=INTERNAL_K8S_MODEL_NAME)
-
-    await model_db.deploy(
+async def test_build_and_deploy_k8s_internal(ops_test: OpsTest, kafka_benchmark_charm) -> None:
+    await ops_test.deploy(
         KAFKA_K8S,
         channel=KAFKA_CHANNEL,
         config=KRAFT_CONFIG | {"expose_external": "nodeport"},
@@ -57,29 +44,29 @@ async def test_build_and_deploy_k8s_internal(microk8s, kafka_benchmark_charm) ->
         trust=True,
     )
 
-    await model_db.model.deploy(
+    await ops_test.model.deploy(
         kafka_benchmark_charm,
         num_units=1,
         series=SERIES,
         config=CONFIG_OPTS,
     )
 
-    await model_db.model.integrate(KAFKA, APP_NAME)
+    await ops_test.model.integrate(KAFKA, APP_NAME)
 
-    await model_db.model.wait_for_idle(apps=[APP_NAME], status="waiting", timeout=2000)
-    await model_db.wait_for_idle(apps=[KAFKA_K8S], status="active", timeout=2000)
+    await ops_test.model.wait_for_idle(apps=[APP_NAME], status="waiting", timeout=2000)
+    await ops_test.wait_for_idle(apps=[KAFKA_K8S], status="active", timeout=2000)
 
 
 @pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
-async def test_prepare() -> None:
+async def test_prepare(ops_test: OpsTest) -> None:
     """Test prepare action."""
     for attempt in Retrying(stop=stop_after_attempt(5), wait=wait_fixed(wait=120), reraise=True):
         with attempt:
-            output = await run_action(model_db, "prepare", f"{APP_NAME}/0")
+            output = await run_action(ops_test, "prepare", f"{APP_NAME}/0")
             assert output.status == "completed"
 
-    await model_db.model.wait_for_idle(
+    await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
         status="waiting",
         raise_on_blocked=True,
@@ -89,70 +76,70 @@ async def test_prepare() -> None:
 
 @pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
-async def test_run() -> None:
+async def test_run(ops_test: OpsTest) -> None:
     """Test run action."""
-    output = await run_action(model_db, "run", f"{APP_NAME}/0")
+    output = await run_action(ops_test, "run", f"{APP_NAME}/0")
     assert output.status == "completed"
 
-    await model_db.model.wait_for_idle(
+    await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
         status="active",
         raise_on_blocked=True,
         timeout=15 * 60,
     )
-    assert check_service(svc_name="dpe-benchmark")
+    assert check_service(svc_name="dpe-benchmark", service_type="pebble")
 
 
 @pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
-async def test_stop() -> None:
+async def test_stop(ops_test: OpsTest) -> None:
     """Test stop action."""
-    output = await run_action(model_db, "stop", f"{APP_NAME}/0")
+    output = await run_action(ops_test, "stop", f"{APP_NAME}/0")
     assert output.status == "completed"
 
-    await model_db.model.wait_for_idle(
+    await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
         status="waiting",
         raise_on_blocked=True,
         timeout=15 * 60,
     )
-    assert not check_service(svc_name="dpe-benchmark")
+    assert not check_service(svc_name="dpe-benchmark", service_type="pebble")
 
 
 @pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
-async def test_restart() -> None:
+async def test_restart(ops_test: OpsTest) -> None:
     """Test stop and restart the benchmark."""
-    output = await run_action(model_db, "run", f"{APP_NAME}/0")
+    output = await run_action(ops_test, "run", f"{APP_NAME}/0")
     assert output.status == "completed"
 
-    await model_db.model.wait_for_idle(
+    await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
         status="active",
         raise_on_blocked=True,
         timeout=15 * 60,
     )
-    assert check_service("dpe-benchmark")
+    assert check_service("dpe-benchmark", service_type="pebble")
 
 
 @pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
-async def test_clean() -> None:
+async def test_clean(ops_test: OpsTest) -> None:
     """Test cleanup action."""
-    output = await run_action(model_db, "stop", f"{APP_NAME}/0")
+    output = await run_action(ops_test, "stop", f"{APP_NAME}/0")
     assert output.status == "completed"
 
-    await model_db.model.wait_for_idle(
+    await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
         status="waiting",
         raise_on_blocked=True,
         timeout=15 * 60,
     )
 
-    output = await run_action(model_db, "cleanup", f"{APP_NAME}/0")
+    output = await run_action(ops_test, "cleanup", f"{APP_NAME}/0")
     assert output.status == "completed"
 
-    await model_db.model.wait_for_idle(
+    await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
         status="waiting",
         raise_on_blocked=True,
