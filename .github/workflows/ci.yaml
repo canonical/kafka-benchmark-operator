@@ -92,6 +92,8 @@ jobs:
       - lint
       - unit-test
       - build
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v4
