@@ -35,7 +35,7 @@ MARKS = [
 @pytest.mark.parametrize("", MARKS)
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy_k8s_internal(ops_test: OpsTest, kafka_benchmark_charm) -> None:
-    await ops_test.deploy(
+    await ops_test.model.deploy(
         KAFKA_K8S,
         channel=KAFKA_CHANNEL,
         config=KRAFT_CONFIG | {"expose_external": "nodeport"},
