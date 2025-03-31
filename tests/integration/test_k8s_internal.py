@@ -88,7 +88,9 @@ async def test_run(ops_test: OpsTest) -> None:
         raise_on_blocked=True,
         timeout=15 * 60,
     )
-    assert check_service(svc_name="dpe-benchmark", service_type="pebble")
+    assert check_service(
+        svc_name="dpe-benchmark", service_type="pebble", model_name=ops_test.model_full_name
+    )
 
 
 @pytest.mark.parametrize("", MARKS)
@@ -104,7 +106,9 @@ async def test_stop(ops_test: OpsTest) -> None:
         raise_on_blocked=True,
         timeout=15 * 60,
     )
-    assert not check_service(svc_name="dpe-benchmark", service_type="pebble")
+    assert not check_service(
+        svc_name="dpe-benchmark", service_type="pebble", model_name=ops_test.model_full_name
+    )
 
 
 @pytest.mark.parametrize("", MARKS)
@@ -122,7 +126,9 @@ async def test_restart(ops_test: OpsTest) -> None:
         raise_on_blocked=True,
         timeout=15 * 60,
     )
-    assert check_service("dpe-benchmark", service_type="pebble")
+    assert check_service(
+        "dpe-benchmark", service_type="pebble", model_name=ops_test.model_full_name
+    )
 
 
 @pytest.mark.parametrize("", MARKS)

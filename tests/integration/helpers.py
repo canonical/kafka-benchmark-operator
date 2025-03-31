@@ -85,12 +85,13 @@ MODEL_CONFIG = {
 def check_service(
     svc_name: str,
     unit_id: int = 0,
+    model_name: str = "",
     retry_if_fail: bool = True,
     service_type: Literal["systemd", "pebble"] = "systemd",
 ) -> bool | None:
     def __check():
         if service_type == "pebble":
-            cmd = ["/charm/bin/pebble", "services", svc_name]
+            cmd = [f"JUJU_MODEL={model_name}" "/charm/bin/pebble", "services", svc_name]
         else:
             cmd = ["--", "sudo", "systemctl", "is-active", svc_name]
 
