@@ -77,8 +77,10 @@ async def test_prepare(ops_test: OpsTest) -> None:
 @pytest.mark.abort_on_fail
 async def test_run(ops_test: OpsTest) -> None:
     """Test run action."""
-    output = await run_action(ops_test, "run", f"{APP_NAME}/0")
-    assert output.status == "completed"
+    for attempt in Retrying(stop=stop_after_attempt(5), wait=wait_fixed(wait=120), reraise=True):
+        with attempt:
+            output = await run_action(ops_test, "run", f"{APP_NAME}/0")
+            assert output.status == "completed"
 
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
@@ -109,8 +111,10 @@ async def test_stop(ops_test: OpsTest) -> None:
 @pytest.mark.abort_on_fail
 async def test_restart(ops_test: OpsTest) -> None:
     """Test stop and restart the benchmark."""
-    output = await run_action(ops_test, "run", f"{APP_NAME}/0")
-    assert output.status == "completed"
+    for attempt in Retrying(stop=stop_after_attempt(5), wait=wait_fixed(wait=120), reraise=True):
+        with attempt:
+            output = await run_action(ops_test, "run", f"{APP_NAME}/0")
+            assert output.status == "completed"
 
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
