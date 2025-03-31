@@ -91,7 +91,7 @@ def check_service(
 ) -> bool | None:
     def __check():
         if service_type == "pebble":
-            cmd = [f"JUJU_MODEL={model_name}" "/charm/bin/pebble", "services", svc_name]
+            cmd = ["/charm/bin/pebble", "services", svc_name]
         else:
             cmd = ["--", "sudo", "systemctl", "is-active", svc_name]
 
@@ -104,6 +104,7 @@ def check_service(
                 ]
                 + cmd,
                 text=True,
+                env={"JUJU_MODEL": model_name} if model_name else {},
             ).rstrip()
 
             logger.info(f"check_service - {response=}")

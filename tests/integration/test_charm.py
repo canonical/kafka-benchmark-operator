@@ -173,7 +173,7 @@ async def test_run(ops_test: OpsTest, use_tls, cloud) -> None:
         raise_on_blocked=True,
         timeout=15 * 60,
     )
-    assert check_service("dpe_benchmark", unit_id=leader_id)
+    assert check_service("dpe-benchmark", unit_id=leader_id)
 
 
 @pytest.mark.parametrize("use_tls,cloud", DEPLOY_MARKS)
@@ -191,7 +191,7 @@ async def test_stop(ops_test: OpsTest, use_tls, cloud) -> None:
         raise_on_blocked=True,
         timeout=15 * 60,
     )
-    assert not check_service("dpe_benchmark", unit_id=leader_id)
+    assert not check_service("dpe-benchmark", unit_id=leader_id)
 
 
 @pytest.mark.parametrize("use_tls,cloud", DEPLOY_MARKS)
@@ -209,7 +209,7 @@ async def test_restart(ops_test: OpsTest, use_tls, cloud) -> None:
         raise_on_blocked=True,
         timeout=15 * 60,
     )
-    assert check_service("dpe_benchmark", unit_id=leader_id)
+    assert check_service("dpe-benchmark", unit_id=leader_id)
 
 
 @pytest.mark.parametrize("use_tls,cloud", DEPLOY_MARKS)
