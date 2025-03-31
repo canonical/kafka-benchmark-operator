@@ -110,8 +110,8 @@ def check_service(
             return "active" in response and "inactive" not in response
 
         except Exception as e:
-            logger.error(e)
-            return False
+            logger.error(vars(e))
+            raise e
 
     if not retry_if_fail:
         return __check()
