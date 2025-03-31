@@ -108,9 +108,9 @@ jobs:
         with:
           pattern: ${{ needs.build.outputs.artifact-prefix }}-*
           merge-multiple: true
-    - name: Setup upterm session
-      uses: lhotari/action-upterm@v1
-    - name: Run integration tests
-      run: tox run -e integration-k8s-internal
-      env:
-        CI_PACKED_CHARMS: ${{ needs.build.outputs.charms }}
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
+      - name: Run integration tests
+        run: tox run -e integration-k8s-internal
+        env:
+          CI_PACKED_CHARMS: ${{ needs.build.outputs.charms }}
