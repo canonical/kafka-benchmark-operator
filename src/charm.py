@@ -226,7 +226,7 @@ class KafkaConfigManager(ConfigManager):
         self.java_tls = java_tls
         self.is_leader = is_leader
         self.service_template_file = (
-            "kafka_benchmark_pebble_layer.json.j2"
+            "kafka_benchmark_pebble_layer.yaml.j2"
             if SUBSTRATE == Substrate.KUBERNETES
             else "kafka_benchmark.service.j2"
         )
