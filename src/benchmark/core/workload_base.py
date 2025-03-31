@@ -19,7 +19,7 @@ class WorkloadTemplatePaths(ABC):
     @property
     def svc_name(self) -> str:
         """The service name."""
-        return "dpe_benchmark"
+        return "dpe-benchmark"
 
     @property
     def charm_dir(self) -> str:
