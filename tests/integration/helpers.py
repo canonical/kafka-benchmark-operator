@@ -4,6 +4,7 @@
 
 
 import logging
+import os
 import subprocess
 from types import SimpleNamespace
 from typing import Literal
@@ -95,6 +96,8 @@ def check_service(
         else:
             cmd = ["--", "sudo", "systemctl", "is-active", svc_name]
 
+        default_env = os.environ.copy()
+
         try:
             response = subprocess.check_output(
                 [
@@ -104,7 +107,7 @@ def check_service(
                 ]
                 + cmd,
                 text=True,
-                env={"JUJU_MODEL": model_name} if model_name else {},
+                env={"JUJU_MODEL": model_name} | default_env if model_name else default_env,
             ).rstrip()
 
             logger.info(f"check_service - {response=}")
