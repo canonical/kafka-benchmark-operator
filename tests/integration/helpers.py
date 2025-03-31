@@ -116,7 +116,7 @@ def check_service(
 
         except Exception as e:
             logger.error(vars(e))
-            raise e
+            return False
 
     if not retry_if_fail:
         return __check()
