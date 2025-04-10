@@ -15,7 +15,7 @@ tenacity = "^9.0.0"
 jinja2 = "^3.1.4"
 requests = "2.32.3"
 shortuuid = "1.0.13"
-cryptography = "^43.0.1"
+cryptography = "^44.0.1"
 jsonschema = "^4.23.0"
 prometheus-client = ">=0.19.0"
 pydantic = "^1.10.18, <2"
@@ -32,7 +32,7 @@ ops = "^2.17"
 # grafana_agent/v0/cos_agent.py requires pydantic <2
 pydantic = "^1.10, <2"
 # tls_certificates_interface/v1/tls_certificates.py
-cryptography = "^43.0.0"
+cryptography = "^44.0.1"
 jsonschema = "^4.23.0"
 # grafana_agent/v0/cos_agent.py
 cosl = "^0.0.57"
