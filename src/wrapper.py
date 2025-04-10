@@ -137,7 +137,7 @@ class KafkaWorkloadToProcessMapping(WorkloadToProcessMapping):
     def _map_run(self) -> tuple[BenchmarkManager | None, list[BenchmarkProcess] | None]:
         """Returns the mapping for the run phase."""
         driver_path = os.path.join(BENCHMARK_WORKLOAD_PATH, "worker_params.yaml")
-        workload_path = os.path.join(BENCHMARK_WORKLOAD_PATH, "dpe_benchmark.json")
+        workload_path = os.path.join(BENCHMARK_WORKLOAD_PATH, "dpe-benchmark.json")
         processes: list[BenchmarkProcess] = [
             KafkaBenchmarkProcess(
                 model=ProcessModel(

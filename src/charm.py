@@ -17,7 +17,6 @@ the user.
 
 import logging
 import os
-import subprocess
 from functools import cached_property
 from math import ceil
 from typing import Any
@@ -29,8 +28,8 @@ from charms.kafka.v0.client import KafkaClient, NewTopic
 from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.model import Application, BlockedStatus, Relation, Unit
-from overrides import override
 from tenacity import Retrying, stop_after_attempt, wait_fixed
+from typing_extensions import override
 
 from benchmark.base_charm import DPBenchmarkCharmBase
 from benchmark.core.models import (
@@ -38,17 +37,17 @@ from benchmark.core.models import (
     DPBenchmarkBaseDatabaseModel,
     PeerState,
 )
-from benchmark.core.pebble_workload_base import DPBenchmarkPebbleWorkloadBase
 from benchmark.core.structured_config import BenchmarkCharmConfig
-from benchmark.core.systemd_workload_base import DPBenchmarkSystemdWorkloadBase
 from benchmark.core.workload_base import WorkloadBase
 from benchmark.events.actions import ActionsHandler
 from benchmark.events.db import DatabaseRelationHandler
 from benchmark.events.peer import PeerRelationHandler
 from benchmark.literals import (
     PEER_RELATION,
+    SUBSTRATE,
     DPBenchmarkLifecycleState,
     DPBenchmarkLifecycleTransition,
+    Substrate,
 )
 from benchmark.managers.config import ConfigManager
 from benchmark.managers.lifecycle import LifecycleManager
@@ -78,8 +77,9 @@ class KafkaDatabaseState(DatabaseState):
         component: Application | Unit,
         relation: Relation | None,
         data: dict[str, Any] = {},
-        tls_relation: Relation
-        | None = None,  # TODO: remove once Kafka emits the TLS data via client relation
+        tls_relation: (
+            Relation | None
+        ) = None,  # TODO: remove once Kafka emits the TLS data via client relation
     ):
         super().__init__(
             component=component,
@@ -183,13 +183,21 @@ class KafkaDatabaseRelationHandler(DatabaseRelationHandler):
 class KafkaPeersRelationHandler(PeerRelationHandler):
     """Listens to all the peer-related events and react to them."""
 
+    def _address(self, unit: Unit, port: int) -> str:
+        return (
+            f"{unit.name.replace('/', '-')}.{unit.app.name}-endpoints:{port}"
+            if SUBSTRATE == Substrate.KUBERNETES
+            else f"{self.relation.data[unit]['ingress-address']}:{port}"
+        )
+
     @override
     def peers(self) -> list[str]:
         """Return the peers."""
         if not self.relation:
             return []
+
         return [
-            f"{self.relation.data[u]['ingress-address']}:{port}"
+            self._address(u, port)
             for u in list(self.units()) + [self.this_unit()]
             for port in range(
                 INITIAL_PORT,
@@ -217,7 +225,11 @@ class KafkaConfigManager(ConfigManager):
         self.worker_params_template_file = "kafka_worker_params_template.j2"
         self.java_tls = java_tls
         self.is_leader = is_leader
-        self.systemd_service_template_file = "kafka_benchmark.service.j2"
+        self.service_template_file = (
+            "kafka_benchmark_pebble_layer.yaml.j2"
+            if SUBSTRATE == Substrate.KUBERNETES
+            else "kafka_benchmark.service.j2"
+        )
 
     def _service_args(
         self, args: dict[str, Any], transition: DPBenchmarkLifecycleTransition
@@ -240,7 +252,7 @@ class KafkaConfigManager(ConfigManager):
         values = self._service_args(options.dict(), transition)
         return self._render(
             values=values,
-            template_file=self.systemd_service_template_file,
+            template_file=self.service_template_file,
             template_content=None,
             dst_filepath=dst_path,
         )
@@ -256,10 +268,11 @@ class KafkaConfigManager(ConfigManager):
             and (values := self.get_execution_options())
         ):
             return False
+
         values = self._service_args(values.dict(), transition)
         compare_svc = "\n".join(self.workload.read(self.workload.paths.service)) == self._render(
             values=values,
-            template_file=self.systemd_service_template_file,
+            template_file=self.service_template_file,
             template_content=None,
             dst_filepath=None,
         )
@@ -271,6 +284,7 @@ class KafkaConfigManager(ConfigManager):
             template_content=self.workload.workload_params_template,
             dst_filepath=None,
         )
+
         return compare_svc and compare_params
 
     def get_worker_params(self) -> dict[str, Any]:
@@ -317,9 +331,11 @@ class KafkaConfigManager(ConfigManager):
         return {
             "partitionsPerTopic": partitions_per_topic,
             "clients": clients,
-            "duration": int(self.config.duration / 60)
-            if self.config.duration > 0
-            else TEN_YEARS_IN_MINUTES,
+            "duration": (
+                int(self.config.duration / 60)
+                if self.config.duration > 0
+                else TEN_YEARS_IN_MINUTES
+            ),
             "charm_root": self.workload.paths.charm_dir,
             "producerRate": workload.producer_rate,
             "messageSize": workload.message_size,
@@ -421,10 +437,8 @@ class KafkaConfigManager(ConfigManager):
                 username=None,
                 password=None,
                 security_protocol="SASL_PLAINTEXT",
-                replication_factor=1,
             )
 
-        host_count = len(state.hosts) if state.hosts else 1
         client = KafkaClient(
             servers=state.hosts or [],
             username=state.username,
@@ -432,15 +446,15 @@ class KafkaConfigManager(ConfigManager):
             security_protocol="SASL_SSL" if has_tls_ca else "SASL_PLAINTEXT",
             cafile_path=self.java_tls.java_paths.ca,
             certfile_path=None,
-            replication_factor=host_count - 1,
         )
 
         # We may be sitting behind k8s, in this case, we need to do a more careful calculation
         # of the host count, and hence, the replication factor
         if client and client.describe_cluster():
             replication_factor = len(client.describe_cluster().get("brokers", []))
-        if replication_factor >= 1:
-            client.replication_factor = min(replication_factor - 1, 3)
+
+        client.replication_factor = min([replication_factor, 3])
+
         return client
 
 
@@ -517,26 +531,17 @@ class KafkaLifecycleManager(LifecycleManager):
         return next_state
 
 
-def workload_build(workload_params_template: str) -> WorkloadBase:
-    """Build the workload."""
-    try:
-        # Really simple check to see if we have systemd
-        subprocess.check_output(["systemctl", "--help"])
-    except subprocess.CalledProcessError:
-        return DPBenchmarkPebbleWorkloadBase(workload_params_template)
-    return DPBenchmarkSystemdWorkloadBase(workload_params_template)
-
-
 class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
     """Charm the service."""
 
     config_type = KafkaBenchmarkCharmConfig
 
     def __init__(self, *args):
-        # Load the workload parameters from the template before the constructor
-        with open("templates/kafka_workload_params_template.j2") as f:
-            self.workload_params_template = f.read()
-        super().__init__(*args, db_relation_name=CLIENT_RELATION_NAME)
+        super().__init__(
+            *args,
+            db_relation_name=CLIENT_RELATION_NAME,
+            workload_params_template_file="templates/kafka_workload_params_template.j2",
+        )
 
         self.labels = ",".join([self.model.name, self.unit.name.replace("/", "-")])
 
@@ -603,17 +608,20 @@ class KafkaBenchmarkOperator(DPBenchmarkCharmBase):
         self.workload.restart()
 
     @override
-    def _on_install(self, event: EventBase) -> None:
+    def _on_install(self, _: EventBase) -> None:
         """Install the charm."""
         apt.add_package(f"openjdk-{JAVA_VERSION}-jre", update_cache=True)
 
+        super()._on_install(_)
+
     @override
-    def _on_config_changed(self, event):
+    def _on_config_changed(self, event: EventBase):
         """Handle the config changed event."""
         if not self.actions._preflight_checks():
             event.defer()
             return
-        return super()._on_config_changed(event)
+
+        super()._on_config_changed(event)
 
 
 if __name__ == "__main__":

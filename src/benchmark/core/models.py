@@ -12,8 +12,8 @@ import logging
 from typing import Any, MutableMapping, Optional
 
 from ops.model import Application, Relation, Unit
-from overrides import override
 from pydantic import BaseModel, error_wrappers, root_validator
+from typing_extensions import override
 
 from benchmark.literals import (
     LIFECYCLE_KEY,

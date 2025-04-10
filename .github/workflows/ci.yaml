@@ -85,3 +85,32 @@ jobs:
       cloud: lxd
     permissions:
       contents: write
+
+  integration-test-k8s-internal:
+    name: Integration test charm
+    needs:
+      - lint
+      - unit-test
+      - build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup operator environment
+        uses: charmed-kubernetes/actions-operator@main
+        with:
+          provider: microk8s
+          channel: "1.32-strict/stable"
+          juju-channel: 3.6/stable
+      - name: Download packed charm(s)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ needs.build.outputs.artifact-prefix }}-*
+          merge-multiple: true
+      # - name: Setup upterm session
+      #   uses: lhotari/action-upterm@v1
+      - name: Run integration tests
+        run: tox run -e integration-k8s-internal
+        env:
+          CI_PACKED_CHARMS: ${{ needs.build.outputs.charms }}

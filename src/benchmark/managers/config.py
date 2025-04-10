@@ -276,5 +276,6 @@ class ConfigManager:
         except exceptions.TemplateNotFound as e:
             raise e
         if not dst_filepath:
-            return content
+            return content.strip()
+
         self.workload.write(content, dst_filepath)

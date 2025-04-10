@@ -19,7 +19,7 @@ class WorkloadTemplatePaths(ABC):
     @property
     def svc_name(self) -> str:
         """The service name."""
-        return "dpe_benchmark"
+        return "dpe-benchmark"
 
     @property
     def charm_dir(self) -> str:
@@ -146,7 +146,10 @@ class WorkloadBase(ABC):
 
     def remove(self, path: str) -> None:
         """Remove the specified file."""
-        os.remove(path)
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
     @abstractmethod
     def exec(

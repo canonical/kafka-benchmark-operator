@@ -3,6 +3,7 @@
 
 """The lifecycle manager class."""
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -22,6 +23,8 @@ from benchmark.literals import (
     DPBenchmarkLifecycleTransition,
 )
 from benchmark.managers.config import ConfigManager
+
+logger = logging.getLogger(__name__)
 
 
 class LifecycleManager:
@@ -278,6 +281,7 @@ class _LifecycleStateBase(_LifecycleState):
 
         if transition == DPBenchmarkLifecycleTransition.CLEAN:
             result = _UnsetLifecycleState(self.manager)
+
         return result if type(result) is not type(self) else None
 
 

@@ -4,8 +4,10 @@
 
 
 import logging
+import os
 import subprocess
 from types import SimpleNamespace
+from typing import Literal
 
 import pytest
 from pytest_operator.plugin import OpsTest
@@ -18,7 +20,7 @@ K8S_DB_MODEL_NAME = "database"
 MICROK8S_CLOUD_NAME = "cloudk8s"
 
 
-CONFIG_OPTS = {"workload_name": "test_mode", "parallel_processes": 1}
+CONFIG_OPTS = {"workload_name": "test_mode", "parallel_processes": 2}
 SERIES = "jammy"
 KAFKA = "kafka"
 KAFKA_K8S = "kafka-k8s"
@@ -81,26 +83,39 @@ MODEL_CONFIG = {
 }
 
 
-def check_service(svc_name: str, unit_id: int = 0, retry_if_fail: bool = True) -> bool | None:
+def check_service(
+    svc_name: str,
+    unit_id: int = 0,
+    model_name: str = "",
+    retry_if_fail: bool = True,
+    service_type: Literal["systemd", "pebble"] = "systemd",
+) -> bool | None:
     def __check():
+        if service_type == "pebble":
+            cmd = ["/charm/bin/pebble", "services", svc_name]
+        else:
+            cmd = ["--", "sudo", "systemctl", "is-active", svc_name]
+
+        default_env = os.environ.copy()
+
         try:
-            return (
-                subprocess.check_output(
-                    [
-                        "juju",
-                        "ssh",
-                        f"{APP_NAME}/{unit_id}",
-                        "--",
-                        "sudo",
-                        "systemctl",
-                        "is-active",
-                        svc_name,
-                    ],
-                    text=True,
-                ).rstrip()
-                == "active"
-            )
-        except Exception:
+            response = subprocess.check_output(
+                [
+                    "juju",
+                    "ssh",
+                    f"{APP_NAME}/{unit_id}",
+                ]
+                + cmd,
+                text=True,
+                env={"JUJU_MODEL": model_name} | default_env if model_name else default_env,
+            ).rstrip()
+
+            logger.info(f"check_service - {response=}")
+
+            return "active" in response and "inactive" not in response
+
+        except Exception as e:
+            logger.error(vars(e))
             return False
 
     if not retry_if_fail:
