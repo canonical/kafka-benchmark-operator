@@ -67,10 +67,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Setup operator environment
-        uses: charmed-kubernetes/actions-operator@main
-        with:
-          provider: lxd
-          juju-channel: 3.6/stable
+        run: |
+          sudo snap install concierge --classic
+          sudo concierge prepare --trace --extra-debs pipx
+      - name: Install dependencies
+        run: |
+          pipx install tox
+          pipx ensurepath
       - name: Download packed charm(s)
         uses: actions/download-artifact@v6
         with:
@@ -78,10 +81,11 @@ jobs:
           merge-multiple: true
       - name: Run integration tests
         run: |
-          juju add-model testing
+          juju switch concierge-lxd
+          juju add-model ci
           tox run -e integration -- tests/integration/test_charm.py \
             --group='${{ matrix.group }}' \
-            --model testing
+            --model ci
         env:
           CI_PACKED_CHARMS: ${{ needs.build.outputs.charms }}
 
@@ -97,17 +101,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Setup operator environment
-        uses: charmed-kubernetes/actions-operator@main
-        with:
-          provider: microk8s
-          channel: "1.32-strict/stable"
-          juju-channel: 3.6/stable
+        run: |
+          sudo snap install concierge --classic
+          sudo concierge prepare --trace --extra-debs pipx
+      - name: Install dependencies
+        run: |
+          pipx install tox
+          pipx ensurepath
       - name: Download packed charm(s)
         uses: actions/download-artifact@v6
         with:
           pattern: ${{ needs.build.outputs.artifact-prefix }}-*
           merge-multiple: true
       - name: Run integration tests
-        run: tox run -e integration-k8s-internal
+        run: |
+          juju switch concierge-k8s
+          juju add-model ci
+          tox run -e integration-k8s-internal -- --model ci
         env:
           CI_PACKED_CHARMS: ${{ needs.build.outputs.charms }}
